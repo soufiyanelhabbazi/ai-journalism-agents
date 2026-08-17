@@ -25,8 +25,11 @@ source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# then edit .env and add your GEMINI_API_KEY (required) and optionally GROQ_API_KEY (fallback)
+# then edit .env and add GEMINI_API_KEY + TURSO_DATABASE_URL/TURSO_AUTH_TOKEN (both required),
+# and optionally GROQ_API_KEY (fallback)
 ```
+
+**Database**: this runs on [Turso](https://app.turso.tech/signup) (a remote, SQLite-compatible database), not a local file — free, no credit card. Sign up, create a database, and copy its connection URL and an auth token from the dashboard into `.env`. This is required even for local development, not just deployment, since the app always talks to Turso now — see "Why not local SQLite" below.
 
 Get a **free** Gemini key at https://aistudio.google.com/apikey — no credit card required. Check https://ai.google.dev/gemini-api/docs/rate-limits for current free-tier limits, since these change over time; the real numbers as observed from an actual account dashboard were 15 requests/minute, 250K tokens/minute, and 500 requests/day for `gemini-3.5-flash-lite` — RPM and RPD are the binding constraints, TPM has substantial headroom.
 
@@ -59,13 +62,26 @@ Re-running is safe: already-seen URLs are automatically skipped (deduped by URL 
 ```
 app/
   main.py        FastAPI routes (config, run, articles, overrides)
-  db.py           SQLite persistence — articles + config, no ORM
+  db.py           Turso (remote SQLite-compatible) persistence — articles + config, no ORM
   scouts.py       RSS fetching & normalization
   supervisor.py   Rule checks + domain specialist + editor-in-chief + staff-writer agents
   pipeline.py     Orchestrates scouts -> dedupe -> supervisor -> storage
 static/
   index.html, style.css, app.js    The dashboard (vanilla JS, no build step)
+vercel.json       Bundles static/ into the deployed function (see Deploying, below)
 ```
+
+## Why not local SQLite
+
+This originally ran on a local `data.db` file. It moved to Turso because a serverless host (Vercel, in particular) gives every request an isolated, ephemeral filesystem — nothing written to local disk survives between requests, so a local file silently loses every write the moment you deploy there. Turso speaks the same SQL over the network instead, which is why `db.py` barely changed: same schema, same queries, just a different connection underneath.
+
+## Deploying (Vercel)
+
+1. Push this repo to GitHub (make sure `.env` is gitignored — it holds live credentials).
+2. Connect the repo at vercel.com ("New Project" → pick it). Vercel auto-detects the FastAPI entrypoint at `app/main.py`.
+3. In the Vercel project's Environment Variables, set `GEMINI_API_KEY`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, and optionally `GROQ_API_KEY` — same values as your local `.env`.
+4. Deploy. `vercel.json` ensures `static/` ships with the function (it's read from disk at runtime, not imported, so Vercel's bundler wouldn't include it by default).
+5. **Test with a small feed list first.** Vercel's free-tier function timeout is 300 seconds; a full 7-feed batch under heavy rate-limit pacing has taken longer than that in testing. Start with 1-2 feeds to confirm the deployment works end-to-end before pointing it at everything.
 
 ## Where to extend next
 
@@ -75,4 +91,4 @@ static/
 - **Editor escalation**: right now a veto is final and silent -- the desk never learns it was overruled. A real feedback loop (editor sends specifics back, desk gets a chance to respond) is where an orchestration framework like LangGraph starts to pay off, since you'd want a real state machine with retries, not a single function call.
 - **Scheduling**: wrap `run_pipeline()` in a cron job or a lightweight scheduler (APScheduler) so it runs automatically instead of via the button.
 - **Auth & multi-user**: none of that exists yet — this is single-user/local by design.
-- **Swap SQLite for Postgres** once you need concurrent writers or want to deploy this somewhere persistent.
+- **Batch `/api/run` for the serverless timeout**: a large candidate batch can still exceed even the extended Vercel duration limits under heavy rate-limit retry pacing. Processing a bounded slice per invocation (triggered repeatedly via Vercel Cron) would remove that ceiling entirely.

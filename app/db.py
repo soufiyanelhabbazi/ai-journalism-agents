@@ -1,15 +1,19 @@
 """
-Simple SQLite persistence layer.
-No ORM on purpose -- keeps the prototype easy to read and swap out later
-(e.g. for Postgres) once you outgrow it.
+Turso (remote, SQLite-compatible) persistence layer.
+No ORM on purpose -- keeps the prototype easy to read.
+
+Was local SQLite; moved to Turso because a serverless host (e.g. Vercel)
+gives each request an isolated, ephemeral filesystem -- nothing written to
+local disk survives between invocations, so a local .db file silently loses
+every write. Turso is the same SQL dialect over the network, which is why
+almost nothing below changed except how a connection is obtained.
 """
-import sqlite3
+import os
 import json
 import hashlib
-from pathlib import Path
 from contextlib import contextmanager
 
-DB_PATH = Path(__file__).parent.parent / "data.db"
+import turso_serverless
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS articles (
@@ -97,15 +101,65 @@ DEFAULT_CONFIG = {
 }
 
 
+class _Cursor:
+    """
+    Wraps a turso_serverless cursor so rows come back as dicts, mirroring
+    what sqlite3.Row + row_factory used to give every function in this file
+    for free (row["key"] access, dict(row) copies). turso_serverless returns
+    plain tuples plus a DB-API-style cursor.description; this just zips the
+    two back together rather than reworking every call site in this module.
+    """
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def _to_dict(self, row):
+        if row is None:
+            return None
+        columns = [d[0] for d in self._cursor.description]
+        return dict(zip(columns, row))
+
+    def fetchone(self):
+        return self._to_dict(self._cursor.fetchone())
+
+    def fetchall(self):
+        return [self._to_dict(r) for r in self._cursor.fetchall()]
+
+    def __iter__(self):
+        return iter(self.fetchall())
+
+    @property
+    def lastrowid(self):
+        return self._cursor.lastrowid
+
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
+
+
+class _Connection:
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=()):
+        cur = self._conn.execute(sql, params) if params else self._conn.execute(sql)
+        return _Cursor(cur)
+
+    def executescript(self, script):
+        self._conn.executescript(script)
+
+    def commit(self):
+        self._conn.commit()
+
+
 @contextmanager
 def get_conn():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-        conn.commit()
-    finally:
-        conn.close()
+    raw = turso_serverless.connect(
+        os.environ["TURSO_DATABASE_URL"],
+        auth_token=os.environ["TURSO_AUTH_TOKEN"],
+    )
+    conn = _Connection(raw)
+    yield conn
+    conn.commit()
 
 
 def init_db():
