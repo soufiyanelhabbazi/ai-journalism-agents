@@ -1,0 +1,348 @@
+const el = (id) => document.getElementById(id);
+
+let currentFilter = "";
+let currentDomainFilter = "";
+
+function setEditionDate() {
+  const now = new Date();
+  el("edition-date").textContent = now.toLocaleDateString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  }).toUpperCase();
+}
+
+function domainRowTemplate(name = "", rubric = "") {
+  return `
+    <div class="domain-row">
+      <div class="domain-row-top">
+        <input type="text" class="domain-name" placeholder="Desk name (e.g. Sports)" value="${escapeHtml(name)}">
+        <button type="button" class="domain-remove" onclick="this.closest('.domain-row').remove()">✕</button>
+      </div>
+      <textarea class="domain-rubric" rows="2" placeholder="What this desk looks for...">${escapeHtml(rubric)}</textarea>
+    </div>
+  `;
+}
+
+function renderDomains(domains) {
+  el("domains-list").innerHTML = (domains || []).map(d => domainRowTemplate(d.name, d.rubric)).join("");
+}
+
+function readDomainsFromForm() {
+  return Array.from(document.querySelectorAll(".domain-row"))
+    .map(row => ({
+      name: row.querySelector(".domain-name").value.trim(),
+      rubric: row.querySelector(".domain-rubric").value.trim(),
+    }))
+    .filter(d => d.name && d.rubric);
+}
+
+function populateDomainFilter(domains) {
+  const select = el("domain-filter");
+  const current = select.value;
+  select.innerHTML = `<option value="">All desks</option>` +
+    (domains || []).map(d => `<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)}</option>`).join("");
+  select.value = [...select.options].some(o => o.value === current) ? current : "";
+}
+
+async function loadConfig() {
+  const res = await fetch("/api/config");
+  const cfg = await res.json();
+  applyConfig(cfg);
+}
+
+function applyConfig(cfg) {
+  el("rubric").value = cfg.rubric || "";
+  el("min-words").value = cfg.min_word_count ?? 150;
+  el("banned").value = (cfg.banned_domains || []).join("\n");
+  el("feeds").value = (cfg.feeds || []).join("\n");
+  el("exclude-keywords").value = (cfg.exclude_keywords || []).join("\n");
+  el("require-attribution").checked = cfg.require_attribution !== false;
+  renderDomains(cfg.domains);
+  populateDomainFilter(cfg.domains);
+}
+
+async function saveConfig() {
+  const payload = {
+    rubric: el("rubric").value,
+    min_word_count: parseInt(el("min-words").value || "0", 10),
+    banned_domains: el("banned").value.split("\n").map(s => s.trim()).filter(Boolean),
+    feeds: el("feeds").value.split("\n").map(s => s.trim()).filter(Boolean),
+    exclude_keywords: el("exclude-keywords").value.split("\n").map(s => s.trim()).filter(Boolean),
+    require_attribution: el("require-attribution").checked,
+    domains: readDomainsFromForm(),
+  };
+  const status = el("save-status");
+  status.textContent = "Saving...";
+  const res = await fetch("/api/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  status.textContent = res.ok ? "Saved." : "Failed to save.";
+  status.style.color = res.ok ? "var(--accept)" : "var(--reject)";
+  setTimeout(() => (status.textContent = ""), 2500);
+  if (res.ok) {
+    const updated = await res.json();
+    populateDomainFilter(updated.domains);
+  }
+}
+
+function timeAgo(iso) {
+  if (!iso) return "";
+  const d = new Date(iso.includes("Z") ? iso : iso + "Z");
+  const diffMin = Math.round((Date.now() - d.getTime()) / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const h = Math.round(diffMin / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+}
+
+function stageLabel(stage) {
+  return {
+    rule: "Rule check",
+    specialist: "Desk review",
+    editor: "Desk + Editor review",
+    manual: "Manual override",
+    llm: "Editorial review",
+  }[stage] || "—";
+}
+
+function formatParagraphs(text) {
+  // dir="auto" goes on each paragraph individually, not a shared wrapper --
+  // a wrapper's own auto-direction is resolved from the first strong-direction
+  // character anywhere inside it in DOM order, so an earlier English label
+  // (like the "Ready to publish" tag) would force the whole block, including
+  // these Arabic paragraphs, into LTR alignment despite their own content.
+  return (text || "")
+    .split(/\n+/)
+    .map(p => p.trim())
+    .filter(Boolean)
+    .map(p => `<p dir="auto">${escapeHtml(p)}</p>`)
+    .join("");
+}
+
+function providerTag(provider) {
+  return provider ? `<span class="provider-tag">via ${escapeHtml(provider)}</span>` : "";
+}
+
+function draftedArticleBlock(a) {
+  return `
+    <div class="drafted-article">
+      <span class="drafted-tag">Ready to publish</span>${providerTag(a.draft_provider)}
+      <h4 class="draft-headline" dir="auto">${escapeHtml(a.draft_headline || "")}</h4>
+      <div class="draft-body">${formatParagraphs(a.draft_article)}</div>
+      <button type="button" class="copy-draft-btn" onclick="copyDraft(this)">Copy Article</button>
+    </div>
+  `;
+}
+
+function cardTemplate(a) {
+  const stampClass = a.status === "accepted" ? "accepted" : a.status === "rejected" ? "rejected" : "pending";
+  const stampLabel = a.status === "pending" ? "reviewing…" : a.status;
+  const domainBadge = a.domain ? `<span class="domain-badge">${escapeHtml(a.domain)}</span>` : "";
+
+  // Writing is the expensive step, so it's opt-in per article rather than automatic --
+  // only offer it on accepted articles that don't already have a draft.
+  const generateBtn = (a.status === "accepted" && !a.draft_article)
+    ? `<button type="button" class="generate-draft-btn" onclick="generateDraft(${a.id}, this)">Generate Article</button>`
+    : "";
+
+  let reasonBlock = "";
+  if (a.draft_article && a.stage === "editor") {
+    // Final accept with a written draft -- show the actual article in place
+    // of the desk's short proposal text, then the editor's sign-off below it.
+    const verb = a.status === "accepted" ? "confirmed" : "overruled";
+    reasonBlock = `
+      <div class="review-trail">
+        <div class="trail-step proposal drafted">
+          <span class="trail-role">${escapeHtml(a.domain || "Desk")}${providerTag(a.proposal_provider)}</span>
+          ${draftedArticleBlock(a)}
+        </div>
+        <div class="trail-step final ${stampClass}">
+          <span class="trail-role">Editor-in-chief · ${verb}${providerTag(a.provider)}</span>
+          <p dir="auto">${escapeHtml(a.reason)}</p>
+        </div>
+      </div>
+    `;
+  } else if (a.draft_article) {
+    // No-domains fallback: a single editor-only pass accepted it, no desk to attribute the draft to.
+    reasonBlock = `<div class="review-trail"><div class="trail-step proposal drafted">${draftedArticleBlock(a)}</div></div>`;
+  } else if (a.stage === "editor" && a.proposal_reason) {
+    // Editor-in-chief reviewed a desk's proposal -- show both steps as a trail,
+    // since the final reason alone hides whether the editor agreed or overruled.
+    const verb = a.status === "accepted" ? "confirmed" : "overruled";
+    reasonBlock = `
+      <div class="review-trail">
+        <div class="trail-step proposal">
+          <span class="trail-role">${escapeHtml(a.domain || "Desk")}${providerTag(a.proposal_provider)}</span>
+          <p dir="auto">${escapeHtml(a.proposal_reason)}</p>
+          ${generateBtn}
+        </div>
+        <div class="trail-step final ${stampClass}">
+          <span class="trail-role">Editor-in-chief · ${verb}${providerTag(a.provider)}</span>
+          <p dir="auto">${escapeHtml(a.reason)}</p>
+        </div>
+      </div>
+    `;
+  } else if (a.reason) {
+    reasonBlock = `<div class="card-reason" dir="auto">${escapeHtml(a.reason)}</div>${providerTag(a.provider)}${generateBtn}`;
+  }
+
+  return `
+    <article class="card ${stampClass}">
+      <span class="stamp ${stampClass}">${stampLabel}</span>
+      <div class="card-top">
+        <span class="card-source">${escapeHtml(a.source || "Unknown source")}</span>
+        ${domainBadge}
+        <span class="card-time">${timeAgo(a.created_at)}</span>
+      </div>
+      <h3 class="card-title" dir="auto"><a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.title || "Untitled")}</a></h3>
+      ${reasonBlock}
+      <div class="card-footer">
+        <span class="card-meta">${stageLabel(a.stage)} · ${a.confidence != null ? Math.round(a.confidence * 100) + "% confidence" : "—"}</span>
+        <span class="override-actions">
+          <button onclick="override(${a.id}, 'accepted')">Force Accept</button>
+          <button onclick="override(${a.id}, 'rejected')">Force Reject</button>
+        </span>
+      </div>
+    </article>
+  `;
+}
+
+function escapeHtml(str) {
+  const d = document.createElement("div");
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function copyDraft(btn) {
+  const container = btn.closest(".drafted-article");
+  const headline = container.querySelector(".draft-headline").textContent;
+  const body = [...container.querySelectorAll(".draft-body p")].map(p => p.textContent).join("\n\n");
+  const text = `${headline}\n\n${body}`;
+  const original = btn.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = "Copied!";
+    setTimeout(() => { btn.textContent = original; }, 1800);
+  }).catch(() => {
+    btn.textContent = "Copy failed — select manually";
+    setTimeout(() => { btn.textContent = original; }, 2500);
+  });
+}
+
+async function generateDraft(id, btn) {
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Generating...";
+  try {
+    const res = await fetch(`/api/articles/${id}/draft`, { method: "POST" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert("Draft generation failed: " + (err.detail || "unknown error"));
+      btn.disabled = false;
+      btn.textContent = original;
+      return;
+    }
+    loadFeed();
+  } catch (e) {
+    alert("Draft generation failed: " + e.message);
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+async function loadFeed() {
+  const params = new URLSearchParams();
+  if (currentFilter) params.set("status", currentFilter);
+  if (currentDomainFilter) params.set("domain", currentDomainFilter);
+  const qs = params.toString();
+  const res = await fetch(`/api/articles${qs ? "?" + qs : ""}`);
+  const articles = await res.json();
+  const feed = el("feed");
+  if (articles.length === 0) {
+    feed.innerHTML = `<div class="empty-state">No articles yet. Configure your standards and hit "Run Scouts".</div>`;
+    return;
+  }
+  feed.innerHTML = articles.map(cardTemplate).join("");
+}
+
+async function override(id, status) {
+  await fetch(`/api/articles/${id}/override`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  loadFeed();
+}
+
+async function runPipeline() {
+  const btn = el("run-btn");
+  btn.disabled = true;
+  btn.textContent = "Scouting...";
+  try {
+    const res = await fetch("/api/run", { method: "POST" });
+    const result = await res.json();
+    if (res.ok) {
+      el("stat-seen").textContent = result.candidates_seen;
+      el("stat-new").textContent = result.new_articles;
+      el("stat-accepted").textContent = result.accepted;
+      el("stat-rejected").textContent = result.rejected;
+      if (result.scout_errors?.length) {
+        console.warn("Scout errors:", result.scout_errors);
+      }
+      if (result.review_errors?.length) {
+        console.warn(`${result.review_errors.length} article(s) left pending (review failed, will retry next run):`, result.review_errors);
+      }
+    } else {
+      alert("Pipeline run failed: " + (result.detail || "unknown error"));
+    }
+  } catch (e) {
+    alert("Pipeline run failed: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Run Scouts";
+    loadFeed();
+  }
+}
+
+async function clearArticles() {
+  if (!confirm("Delete all articles? This can't be undone.")) return;
+  const btn = el("clear-btn");
+  btn.disabled = true;
+  btn.textContent = "Clearing...";
+  try {
+    await fetch("/api/articles", { method: "DELETE" });
+    el("stat-seen").textContent = "—";
+    el("stat-new").textContent = "—";
+    el("stat-accepted").textContent = "—";
+    el("stat-rejected").textContent = "—";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Clear Articles";
+    loadFeed();
+  }
+}
+
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    currentFilter = tab.dataset.status;
+    loadFeed();
+  });
+});
+
+el("save-btn").addEventListener("click", saveConfig);
+el("run-btn").addEventListener("click", runPipeline);
+el("clear-btn").addEventListener("click", clearArticles);
+el("add-domain-btn").addEventListener("click", () => {
+  el("domains-list").insertAdjacentHTML("beforeend", domainRowTemplate());
+});
+el("domain-filter").addEventListener("change", () => {
+  currentDomainFilter = el("domain-filter").value;
+  loadFeed();
+});
+
+setEditionDate();
+loadConfig();
+loadFeed();

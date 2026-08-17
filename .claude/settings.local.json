@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./venv/Scripts/python.exe -m py_compile app/db.py)",
+      "Bash(./venv/Scripts/python.exe -m py_compile app/supervisor.py)",
+      "Bash(./venv/Scripts/python.exe -m py_compile app/pipeline.py)",
+      "Bash(./venv/Scripts/python.exe -c ' *)"
+    ]
+  }
+}

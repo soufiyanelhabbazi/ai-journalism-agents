@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAFIRCOM AI Journalist</title>
+<link rel="icon" href="/static/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <img src="/static/logo.png" alt="SAFIRCOM" class="brand-logo">
+      <div class="brand-text">
+        <h1>SAFIRCOM <span class="brand-accent">AI Journalist</span></h1>
+        <span class="byline">Owned by Btissam Machkour</span>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <div class="edition-date" id="edition-date"></div>
+      <button id="clear-btn" class="btn btn-ghost">Clear Articles</button>
+      <button id="run-btn" class="btn btn-primary">Run Scouts</button>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <section class="panel">
+      <h2>Domain Desks</h2>
+      <p class="panel-hint">Each desk is its own specialist agent: it claims articles that fit its beat and judges them against its own standard. Proposed accepts still need editor sign-off below.</p>
+      <div id="domains-list"></div>
+      <button id="add-domain-btn" class="btn btn-ghost btn-block" type="button">+ Add Domain</button>
+    </section>
+
+    <section class="panel">
+      <h2>Editor-in-Chief</h2>
+      <label class="field-label">Universal standard <span class="hint">applied to every desk's proposed accepts — the final sign-off</span></label>
+      <textarea id="rubric" rows="6" placeholder="Describe what makes an article acceptable, regardless of desk..."></textarea>
+
+      <label class="field-label">Minimum word count</label>
+      <input id="min-words" type="number" min="0" />
+
+      <label class="field-label checkbox-label">
+        <input id="require-attribution" type="checkbox" />
+        Require attribution (quotes / "said" / "according to")
+      </label>
+
+      <label class="field-label">Exclude keywords <span class="hint">one per line, any match rejects</span></label>
+      <textarea id="exclude-keywords" rows="2" placeholder="e.g. horoscope&#10;sponsored"></textarea>
+
+      <label class="field-label">Banned domains <span class="hint">one per line</span></label>
+      <textarea id="banned" rows="2" placeholder="example.com"></textarea>
+
+      <label class="field-label">Sources (RSS feeds) <span class="hint">one per line</span></label>
+      <textarea id="feeds" rows="5" placeholder="https://example.com/feed.xml"></textarea>
+
+      <button id="save-btn" class="btn btn-primary btn-block">Save Standards</button>
+      <div id="save-status" class="save-status"></div>
+    </section>
+
+    <section class="panel stats-panel">
+      <h2>Last Run</h2>
+      <div class="stat-row"><span>Candidates seen</span><span id="stat-seen">—</span></div>
+      <div class="stat-row"><span>New articles</span><span id="stat-new">—</span></div>
+      <div class="stat-row accepted"><span>Accepted</span><span id="stat-accepted">—</span></div>
+      <div class="stat-row rejected"><span>Rejected</span><span id="stat-rejected">—</span></div>
+    </section>
+  </aside>
+
+  <main class="wire">
+    <div class="wire-controls">
+      <div class="filter-tabs">
+        <button class="tab active" data-status="">All</button>
+        <button class="tab" data-status="accepted">Accepted</button>
+        <button class="tab" data-status="rejected">Rejected</button>
+      </div>
+      <select id="domain-filter" class="domain-filter">
+        <option value="">All desks</option>
+      </select>
+    </div>
+    <div id="feed" class="feed"></div>
+  </main>
+
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
