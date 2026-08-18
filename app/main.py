@@ -57,10 +57,20 @@ def update_config(payload: ConfigUpdate):
 # ---------- Pipeline ----------
 
 @app.post("/api/run")
-def run():
+def run(
+    deadline_seconds: float = pipeline.DEFAULT_DEADLINE_SECONDS,
+    max_new_candidates: int = pipeline.DEFAULT_MAX_NEW_CANDIDATES,
+):
+    """
+    Optional ?deadline_seconds= and ?max_new_candidates= query params
+    override the defaults -- e.g. a higher deadline if you're on Vercel
+    Pro's longer function timeout. Always bounded over HTTP on purpose
+    (unlike a direct pipeline.run_pipeline() call, which accepts None for a
+    genuinely unbounded local run) -- an internet-exposed endpoint shouldn't
+    have a way to disable its own timeout protection.
+    """
     try:
-        result = pipeline.run_pipeline()
-        return result
+        return pipeline.run_pipeline(deadline_seconds=deadline_seconds, max_new_candidates=max_new_candidates)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
