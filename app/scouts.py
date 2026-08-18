@@ -24,7 +24,20 @@ _TAG_RE = re.compile(r"<[^>]+>")
 # feedparser is only ever handed already-downloaded bytes to parse, no
 # network I/O of its own.
 FETCH_TIMEOUT = 10.0  # seconds
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; SafircomAIJournalist/1.0)"}
+
+# A self-identifying bot UA (e.g. "SafircomAIJournalist/1.0") worked fine
+# fetching these same public RSS feeds from a home IP, but got 403'd on
+# hespress.com and mapnews.ma once requests started coming from Vercel's
+# shared datacenter IP ranges -- bot-protection services commonly combine
+# IP reputation with UA fingerprinting, and a generic "compatible; bot" UA
+# is an easy extra signal to flag. A standard browser UA + Accept headers
+# removes that signal; it won't help if the block is purely IP-reputation
+# based; still request the actual RSS content-type, not HTML.
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/rss+xml, application/xml, text/xml, */*;q=0.8",
+    "Accept-Language": "ar,en-US;q=0.9,en;q=0.8",
+}
 
 # Even with httpx's own timeout enforced above, several feeds (hespress.com,
 # al3omk.com, barlamane.com, ar.yabiladi.com) still stalled 20-60s -- past
