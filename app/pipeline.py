@@ -108,8 +108,8 @@ def run_pipeline(
                 continue  # race with the UNIQUE constraint, skip
 
             new_count += 1
-            recent_titles.append(candidate["title"])  # so within-batch dupes are also caught, but only *after* this one's own check
             review_and_store(candidate, article_id)
+            recent_titles.append(candidate["title"])  # only *after* this one's own check, so it can't match itself -- still catches within-batch dupes for subsequent candidates
 
     return {
         "candidates_seen": len(candidates),
