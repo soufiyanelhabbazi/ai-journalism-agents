@@ -275,6 +275,60 @@ async function override(id, status) {
   loadFeed();
 }
 
+// Run problems used to go to console.warn only, which meant a completely
+// broken pipeline looked identical to a working one from the dashboard --
+// articles just sat at "reviewing..." forever with no visible explanation.
+// Anything that stops an article getting a verdict is surfaced here instead.
+function renderAlerts(items) {
+  const box = el("alerts");
+  if (!items.length) {
+    box.hidden = true;
+    box.innerHTML = "";
+    return;
+  }
+  box.hidden = false;
+  box.innerHTML = items.map(a => `
+    <div class="alert alert-${a.level}">
+      <strong>${escapeHtml(a.title)}</strong>
+      <div class="alert-body">${a.lines.map(l => `<div>${escapeHtml(l)}</div>`).join("")}</div>
+    </div>
+  `).join("");
+}
+
+function alertsFromRun(result) {
+  const alerts = [];
+  if (result.review_errors?.length) {
+    // Collapse identical errors -- one dead model produces the same line
+    // dozens of times, and a wall of duplicates hides everything else.
+    const byError = new Map();
+    for (const e of result.review_errors) {
+      byError.set(e.error, (byError.get(e.error) || 0) + 1);
+    }
+    alerts.push({
+      level: "error",
+      title: `${result.review_errors.length} article(s) got no verdict — the review step failed`,
+      lines: [...byError.entries()].map(([err, n]) => `${n}× ${err}`),
+    });
+  }
+  if (result.scout_errors?.length) {
+    alerts.push({
+      level: "warn",
+      title: `${result.scout_errors.length} source(s) could not be fetched`,
+      lines: result.scout_errors.map(e => `${e.feed} — ${e.error}`),
+    });
+  }
+  if (result.deferred) {
+    alerts.push({
+      level: "warn",
+      title: `${result.deferred} candidate(s) deferred to the next run`,
+      lines: [result.deadline_reached
+        ? "The run hit its time limit. Click Run Scouts again to keep going."
+        : "Per-run candidate cap reached. Click Run Scouts again to keep going."],
+    });
+  }
+  return alerts;
+}
+
 async function runPipeline() {
   const btn = el("run-btn");
   btn.disabled = true;
@@ -287,17 +341,13 @@ async function runPipeline() {
       el("stat-new").textContent = result.new_articles;
       el("stat-accepted").textContent = result.accepted;
       el("stat-rejected").textContent = result.rejected;
-      if (result.scout_errors?.length) {
-        console.warn("Scout errors:", result.scout_errors);
-      }
-      if (result.review_errors?.length) {
-        console.warn(`${result.review_errors.length} article(s) left pending (review failed, will retry next run):`, result.review_errors);
-      }
+      el("stat-pending").textContent = result.pending ?? "—";
+      renderAlerts(alertsFromRun(result));
     } else {
-      alert("Pipeline run failed: " + (result.detail || "unknown error"));
+      renderAlerts([{ level: "error", title: "Pipeline run failed", lines: [result.detail || "unknown error"] }]);
     }
   } catch (e) {
-    alert("Pipeline run failed: " + e.message);
+    renderAlerts([{ level: "error", title: "Pipeline run failed", lines: [e.message] }]);
   } finally {
     btn.disabled = false;
     btn.textContent = "Run Scouts";
@@ -323,6 +373,49 @@ async function clearArticles() {
   }
 }
 
+async function runHealthCheck() {
+  const btn = el("health-btn");
+  btn.disabled = true;
+  btn.textContent = "Checking...";
+  try {
+    const res = await fetch("/api/health");
+    const h = await res.json();
+    const alerts = [];
+
+    const badEnv = Object.entries(h.env || {})
+      .filter(([, v]) => !v.set || v.had_surrounding_whitespace)
+      .map(([k, v]) => !v.set
+        ? `${k} — not set`
+        : `${k} — has leading/trailing whitespace; re-paste it without a trailing newline`);
+    if (badEnv.length) alerts.push({ level: "warn", title: "Environment variables", lines: badEnv });
+
+    for (const [name, key] of [["Gemini", "gemini"], ["Groq (optional fallback)", "groq"], ["Database", "database"]]) {
+      const r = h[key];
+      if (r && !r.ok) {
+        const lines = [r.error || "unknown error"];
+        if (r.available_models) lines.push("Models this key can reach: " + r.available_models.join(", "));
+        if (r.available_models_error) lines.push(r.available_models_error);
+        alerts.push({ level: key === "groq" ? "warn" : "error", title: `${name} is not working`, lines });
+      }
+    }
+
+    if (!alerts.length) {
+      alerts.push({ level: "ok", title: "All systems OK", lines: [
+        `Gemini: ${h.gemini?.model}`,
+        `Groq: ${h.groq?.model}`,
+        `Database: ${h.database?.articles} article(s) — ` +
+          Object.entries(h.database?.by_status || {}).map(([k, v]) => `${v} ${k}`).join(", "),
+      ]});
+    }
+    renderAlerts(alerts);
+  } catch (e) {
+    renderAlerts([{ level: "error", title: "System check failed", lines: [e.message] }]);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Run system check";
+  }
+}
+
 document.querySelectorAll(".tab").forEach(tab => {
   tab.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -335,6 +428,7 @@ document.querySelectorAll(".tab").forEach(tab => {
 el("save-btn").addEventListener("click", saveConfig);
 el("run-btn").addEventListener("click", runPipeline);
 el("clear-btn").addEventListener("click", clearArticles);
+el("health-btn").addEventListener("click", runHealthCheck);
 el("add-domain-btn").addEventListener("click", () => {
   el("domains-list").insertAdjacentHTML("beforeend", domainRowTemplate());
 });

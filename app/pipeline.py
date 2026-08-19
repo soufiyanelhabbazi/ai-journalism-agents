@@ -38,6 +38,11 @@ def run_pipeline(
 
     candidates, scout_errors = scouts.run_scouts(feeds)
 
+    # One round trip for the whole dedupe set, instead of one per candidate
+    # (see db.existing_url_hashes). Kept in a local set so URLs inserted
+    # during this run also dedupe against later candidates in the same run.
+    seen_hashes = db.existing_url_hashes()
+
     # Recent titles feed the near-duplicate check in the rule stage. Pulling
     # this once up front (rather than per-article) keeps the pipeline fast.
     recent_titles = [a["title"] for a in db.list_articles(limit=300) if a.get("title")]
@@ -96,8 +101,10 @@ def run_pipeline(
             if out_of_time():
                 deferred_count += 1
                 continue
-            if db.article_exists(candidate["url"]):
+            candidate_hash = db.url_hash(candidate["url"])
+            if candidate_hash in seen_hashes:
                 continue  # dedupe: already seen this URL before -- free to check, doesn't count against the cap
+            seen_hashes.add(candidate_hash)
 
             if max_new_candidates is not None and new_count >= max_new_candidates:
                 deferred_count += 1
@@ -120,4 +127,5 @@ def run_pipeline(
         "review_errors": review_errors,
         "deadline_reached": out_of_time(),
         "deferred": deferred_count,  # non-zero means: click Run Scouts again to keep draining the backlog
+        "pending": db.status_counts().get("pending", 0),  # backlog still awaiting a verdict
     }

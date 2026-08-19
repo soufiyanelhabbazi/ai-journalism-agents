@@ -99,13 +99,28 @@ def fetch_from_feed(feed_url: str, max_items: int = 15) -> list[dict]:
     return articles
 
 
-def run_scouts(feed_urls: list[str], max_items_per_feed: int = 15) -> list[dict]:
-    """Run all scout agents (one per feed) and return the combined candidate list."""
-    all_articles = []
+def run_scouts(feed_urls: list[str], max_items_per_feed: int = 15) -> tuple[list[dict], list[dict]]:
+    """
+    Run all scout agents (one per feed) and return (candidates, errors).
+
+    Candidates are interleaved round-robin across feeds rather than
+    concatenated feed-by-feed. The pipeline caps how many new candidates one
+    run admits, and with a flat concatenation that cap was always consumed
+    by whichever feed happened to be listed first -- in practice every single
+    stored article came from one source while the other six never got a look
+    in. Round-robin makes the cap take a slice of each feed instead.
+    """
+    per_feed = []
     errors = []
     for feed_url in feed_urls:
         try:
-            all_articles.extend(fetch_from_feed(feed_url, max_items_per_feed))
+            per_feed.append(fetch_from_feed(feed_url, max_items_per_feed))
         except Exception as e:
             errors.append({"feed": feed_url, "error": str(e)})
+
+    all_articles = []
+    for i in range(max(map(len, per_feed), default=0)):
+        for feed_articles in per_feed:
+            if i < len(feed_articles):
+                all_articles.append(feed_articles[i])
     return all_articles, errors

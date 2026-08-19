@@ -583,3 +583,44 @@ textarea:focus, input:focus {
   border: 1px dashed var(--border-soft);
   border-radius: var(--radius-lg);
 }
+
+/* ---------- Run alerts ----------
+   Failures that stop an article getting a verdict (dead model, unreachable
+   feed, deferred backlog) belong on screen, not in the browser console. */
+.alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.alert {
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 12px 14px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.alert strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.alert-body {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  /* Provider errors are long single-line strings; wrap rather than clip. */
+  overflow-wrap: anywhere;
+}
+
+.alert-body > div + div { margin-top: 4px; }
+
+.alert-error { border-left-color: var(--reject); background: var(--reject-bg); }
+.alert-warn  { border-left-color: var(--pending); background: var(--pending-bg); }
+.alert-ok    { border-left-color: var(--accept); background: var(--accept-bg); }

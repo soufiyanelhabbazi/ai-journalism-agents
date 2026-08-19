@@ -12,6 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import db, pipeline, supervisor
+from .env import env
 
 app = FastAPI(title="SAFIRCOM AI Journalist")
 
@@ -21,11 +22,11 @@ STATIC_DIR = Path(__file__).parent.parent / "static"
 @app.on_event("startup")
 def startup():
     db.init_db()
-    if not os.environ.get("GEMINI_API_KEY"):
+    if not env("GEMINI_API_KEY"):
         print("WARNING: GEMINI_API_KEY is not set. Copy .env.example to .env and add your free key from aistudio.google.com/apikey")
-    if not os.environ.get("GROQ_API_KEY"):
+    if not env("GROQ_API_KEY"):
         print("NOTE: GROQ_API_KEY is not set -- judgment calls (desk + editor) run Gemini-only, with no fallback once its rate limit is hit. Optional free key from console.groq.com/keys.")
-    if not os.environ.get("SECRET_KEY") or not os.environ.get("ADMIN_PASSWORD"):
+    if not env("SECRET_KEY") or not env("ADMIN_PASSWORD"):
         print("WARNING: SECRET_KEY and/or ADMIN_PASSWORD not set -- see .env.example. The app will still start, but no one (including you) will be able to log in.")
 
 
@@ -62,9 +63,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
 app.add_middleware(AuthMiddleware)
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.environ.get("SECRET_KEY", "insecure-dev-key-set-SECRET_KEY-in-.env"),
+    secret_key=env("SECRET_KEY", "insecure-dev-key-set-SECRET_KEY-in-.env"),
     same_site="lax",
-    https_only=os.environ.get("VERCEL_ENV") == "production",
+    https_only=env("VERCEL_ENV") == "production",
 )
 
 
@@ -109,8 +110,10 @@ def login_page(error: str | None = None):
 
 @app.post("/login")
 def login_submit(request: Request, username: str = Form(...), password: str = Form(...)):
-    admin_user = os.environ.get("ADMIN_USERNAME", "")
-    admin_pass = os.environ.get("ADMIN_PASSWORD", "")
+    # env() strips: a username or password pasted into a hosting dashboard
+    # with a trailing newline would otherwise never match what anyone types.
+    admin_user = env("ADMIN_USERNAME")
+    admin_pass = env("ADMIN_PASSWORD")
     valid = (
         admin_pass != ""
         and secrets.compare_digest(username, admin_user)
@@ -126,6 +129,81 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
 def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login", status_code=303)
+
+
+# ---------- Health / diagnostics ----------
+#
+# Exists because the failure that took this app down in production was
+# invisible from the outside: every LLM verdict failed while feeds fetched
+# fine and the dashboard just showed articles sitting at "reviewing...".
+# The cause was a GEMINI_API_KEY pasted with a trailing newline, which makes
+# an illegal HTTP header value and surfaces from the OpenAI SDK as a bare
+# "Connection error." -- unrecognizable as a config problem. This endpoint
+# makes that whole class of fault self-diagnosing: it reports whether each
+# secret is present and whether it had surrounding whitespace, then actually
+# calls each provider so a dead model or an exhausted quota shows up as a
+# real error string instead of silence.
+#
+# Never returns a secret's value -- only presence, length, and shape.
+
+
+def _secret_report(name: str) -> dict:
+    raw = os.environ.get(name)
+    if raw is None:
+        return {"set": False}
+    stripped = raw.strip()
+    return {
+        "set": bool(stripped),
+        "length": len(stripped),
+        # The trap: invisible in a hosting dashboard, fatal for a header value.
+        # env() strips it now, so this is a warning about the stored value,
+        # not a live failure.
+        "had_surrounding_whitespace": raw != stripped,
+    }
+
+
+def _ping_provider(get_client_fn, model: str) -> dict:
+    try:
+        client = get_client_fn()
+        client.chat.completions.create(
+            model=model, max_tokens=5, messages=[{"role": "user", "content": "ping"}]
+        )
+        return {"ok": True, "model": model}
+    except Exception as e:
+        return {"ok": False, "model": model, "error": f"{type(e).__name__}: {e}"[:400]}
+
+
+@app.get("/api/health")
+def health():
+    """Live check of every external dependency. Secrets are never echoed."""
+    report = {
+        "env": {n: _secret_report(n) for n in (
+            "GEMINI_API_KEY", "GROQ_API_KEY",
+            "TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN",
+            "ADMIN_USERNAME", "ADMIN_PASSWORD", "SECRET_KEY",
+        )},
+    }
+
+    try:
+        counts = db.status_counts()
+        report["database"] = {"ok": True, "articles": sum(counts.values()), "by_status": counts}
+    except Exception as e:
+        report["database"] = {"ok": False, "error": f"{type(e).__name__}: {e}"[:400]}
+
+    report["gemini"] = _ping_provider(supervisor.get_client, supervisor.LLM_MODEL)
+    report["groq"] = _ping_provider(supervisor.get_groq_client, supervisor.GROQ_MODEL)
+
+    # If the configured Groq model has been retired, the live list is the
+    # only way to know what to switch GROQ_MODEL to without a redeploy.
+    if not report["groq"]["ok"]:
+        try:
+            report["groq"]["available_models"] = sorted(
+                m.id for m in supervisor.get_groq_client().models.list().data
+            )
+        except Exception as e:
+            report["groq"]["available_models_error"] = f"{type(e).__name__}: {e}"[:200]
+
+    return report
 
 
 # ---------- Config ----------

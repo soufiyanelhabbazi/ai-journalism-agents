@@ -55,27 +55,51 @@ import time
 import difflib
 from openai import OpenAI, RateLimitError
 
+from .env import env
+
 _gemini_client = None
 _groq_client = None
 
 LLM_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-LLM_MODEL = "gemini-flash-lite-latest"
+LLM_MODEL = env("GEMINI_MODEL", "gemini-flash-lite-latest")
 
+# Groq retires model names on a published schedule and starts 404ing them
+# ("model_not_found") with no grace period -- llama-3.3-70b-versatile, the
+# original pick here, was decommissioned and silently took the entire
+# fallback path down with it. Overridable by env so a future retirement is
+# a dashboard edit rather than a redeploy; /api/health lists what the key
+# can currently reach.
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = env("GROQ_MODEL", "llama-3.1-8b-instant")
+
+
+class AllProvidersFailedError(RuntimeError):
+    """Every configured provider failed; the message names each one's error."""
 
 
 def get_client() -> OpenAI:
     global _gemini_client
     if _gemini_client is None:
-        _gemini_client = OpenAI(api_key=os.environ.get("GEMINI_API_KEY"), base_url=LLM_BASE_URL)
+        key = env("GEMINI_API_KEY")
+        if not key:
+            raise RuntimeError(
+                "GEMINI_API_KEY is not set. Add it in your host's environment "
+                "variables (Vercel: Settings -> Environment Variables) and redeploy."
+            )
+        _gemini_client = OpenAI(api_key=key, base_url=LLM_BASE_URL)
     return _gemini_client
 
 
 def get_groq_client() -> OpenAI:
     global _groq_client
     if _groq_client is None:
-        _groq_client = OpenAI(api_key=os.environ.get("GROQ_API_KEY"), base_url=GROQ_BASE_URL)
+        key = env("GROQ_API_KEY")
+        # Groq is the optional fallback -- an unset key is a normal
+        # configuration, so this fails fast and lets the caller move on
+        # rather than being dressed up as an outage.
+        if not key or key == "your-key-here":
+            raise RuntimeError("GROQ_API_KEY is not set (optional fallback provider)")
+        _groq_client = OpenAI(api_key=key, base_url=GROQ_BASE_URL)
     return _groq_client
 
 
@@ -228,22 +252,29 @@ def _create_with_fallback(providers, **kwargs):
     actually served the request. The caller leaves the article 'pending' on
     total failure, so nothing is lost even if every provider is out of quota.
     """
-    last_error = None
+    failures = []  # one (label, error) per provider, in the order tried
     for get_client_fn, model_name, label in providers:
         max_attempts = 3
+        provider_error = None
         for attempt in range(max_attempts):
             try:
                 client = get_client_fn()
                 response = client.chat.completions.create(model=model_name, **kwargs)
                 return response, label
             except RateLimitError as e:
-                last_error = e
+                provider_error = e
                 if attempt < max_attempts - 1:
                     time.sleep(2 ** attempt * 5)  # 5s, 10s
             except Exception as e:
-                last_error = e
+                provider_error = e
                 break  # not a rate limit -- retrying this provider won't help
-    raise last_error
+        failures.append(f"{label} ({model_name}): {provider_error}")
+
+    # Report *every* provider's failure, not just the last one. Raising only
+    # the final error meant the fallback provider's message overwrote the
+    # primary's -- production spent a long time looking like a dead Groq
+    # model when the actual fault was Gemini failing first, invisibly.
+    raise AllProvidersFailedError("All providers failed -- " + " | ".join(failures))
 
 
 def _parse_tool_call(response, fallback_reason: str) -> dict:

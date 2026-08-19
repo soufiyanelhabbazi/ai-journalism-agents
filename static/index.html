@@ -71,6 +71,8 @@
       <div class="stat-row"><span>New articles</span><span id="stat-new">—</span></div>
       <div class="stat-row accepted"><span>Accepted</span><span id="stat-accepted">—</span></div>
       <div class="stat-row rejected"><span>Rejected</span><span id="stat-rejected">—</span></div>
+      <div class="stat-row"><span>Awaiting verdict</span><span id="stat-pending">—</span></div>
+      <button id="health-btn" class="btn btn-ghost btn-block" type="button">Run system check</button>
     </section>
   </aside>
 
@@ -80,11 +82,13 @@
         <button class="tab active" data-status="">All</button>
         <button class="tab" data-status="accepted">Accepted</button>
         <button class="tab" data-status="rejected">Rejected</button>
+        <button class="tab" data-status="pending">Awaiting verdict</button>
       </div>
       <select id="domain-filter" class="domain-filter">
         <option value="">All desks</option>
       </select>
     </div>
+    <div id="alerts" class="alerts" hidden></div>
     <div id="feed" class="feed"></div>
   </main>
 

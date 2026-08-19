@@ -15,6 +15,8 @@ from contextlib import contextmanager
 
 import turso_serverless
 
+from .env import env
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS articles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -153,10 +155,18 @@ class _Connection:
 
 @contextmanager
 def get_conn():
-    raw = turso_serverless.connect(
-        os.environ["TURSO_DATABASE_URL"],
-        auth_token=os.environ["TURSO_AUTH_TOKEN"],
-    )
+    # env() (not os.environ[...]) so a token pasted with a trailing newline
+    # into a hosting dashboard doesn't produce a baffling auth failure, and
+    # so a missing one raises a sentence a human can act on rather than a
+    # bare KeyError from deep inside a request.
+    url = env("TURSO_DATABASE_URL")
+    token = env("TURSO_AUTH_TOKEN")
+    if not url or not token:
+        raise RuntimeError(
+            "TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must both be set -- see "
+            ".env.example. On Vercel these live in Settings -> Environment Variables."
+        )
+    raw = turso_serverless.connect(url, auth_token=token)
     conn = _Connection(raw)
     yield conn
     conn.commit()
@@ -193,6 +203,22 @@ def set_config(key: str, value) -> None:
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
             (key, json.dumps(value)),
         )
+
+
+def existing_url_hashes() -> set[str]:
+    """
+    All known url_hashes in one round trip.
+
+    Every get_conn() here opens a fresh HTTP connection to Turso, so the old
+    per-candidate article_exists() call cost one network round trip *per
+    candidate* -- ~60 of them per run, which was a large slice of the
+    function's execution budget spent purely on dedupe. The whole hash set
+    is small (64 chars a row) and the pipeline checks every candidate
+    against it anyway, so fetching it once is strictly cheaper.
+    """
+    with get_conn() as conn:
+        rows = conn.execute("SELECT url_hash FROM articles").fetchall()
+        return {r["url_hash"] for r in rows}
 
 
 def article_exists(url: str) -> bool:
@@ -263,6 +289,16 @@ def list_articles(status: str | None = None, domain: str | None = None, limit: i
             (*params, limit),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def status_counts() -> dict:
+    """{status: count} for the whole table -- one small query rather than
+    pulling every row's full body just to count them."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT status, COUNT(*) AS n FROM articles GROUP BY status"
+        ).fetchall()
+        return {r["status"]: r["n"] for r in rows}
 
 
 def get_article(article_id: int) -> dict | None:
