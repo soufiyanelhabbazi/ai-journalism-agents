@@ -1,4 +1,5 @@
 import os
+import time
 import secrets
 from pathlib import Path
 from dotenv import load_dotenv
@@ -45,10 +46,37 @@ def startup():
 # guess can't be timed to leak how many characters matched.
 PUBLIC_PATHS = {"/login"}
 
+# A scheduler has no browser and therefore no session cookie, so the cron
+# entrypoint authenticates with a bearer token instead. It's a separate path
+# from /api/run on purpose: the token unlocks exactly one endpoint (start a
+# pipeline run) rather than the whole API, so a leaked scheduler token can't
+# read articles, rewrite the editorial standards, or delete anything.
+#
+# Fails closed. With CRON_SECRET unset, the token never matches and the cron
+# endpoint simply 401s -- /api/health reports that so a silently idle
+# schedule is visible rather than mysterious.
+CRON_PATHS = {"/api/cron/run"}
+
+
+def _cron_token_valid(request: Request) -> bool:
+    secret = env("CRON_SECRET")
+    if not secret:
+        return False
+    header = request.headers.get("authorization", "")
+    prefix = "Bearer "
+    if not header.startswith(prefix):
+        return False
+    # compare_digest, as with the login, so the token can't be guessed a
+    # character at a time by timing the responses.
+    return secrets.compare_digest(header[len(prefix):], secret)
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
         if path in PUBLIC_PATHS or path.startswith("/static/"):
+            return await call_next(request)
+        if path in CRON_PATHS and _cron_token_valid(request):
             return await call_next(request)
         if not request.session.get("authenticated"):
             if path.startswith("/api/"):
@@ -191,8 +219,19 @@ def health():
         "env": {n: _secret_report(n) for n in (
             "GEMINI_API_KEY", "GROQ_API_KEY",
             "TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN",
-            "ADMIN_USERNAME", "ADMIN_PASSWORD", "SECRET_KEY",
+            "ADMIN_USERNAME", "ADMIN_PASSWORD", "SECRET_KEY", "CRON_SECRET",
         )},
+    }
+    # Without this the scheduled runs 401 silently and the app just looks
+    # like it stopped fetching on its own.
+    report["scheduling"] = {
+        "enabled": bool(env("CRON_SECRET")),
+        "detail": (
+            "Scheduled runs are active."
+            if env("CRON_SECRET")
+            else "CRON_SECRET is not set, so /api/cron/run rejects every scheduled call. "
+                 "Set it in your host's environment variables to enable unattended runs."
+        ),
     }
 
     try:
@@ -266,6 +305,50 @@ def run(
         return pipeline.run_pipeline(deadline_seconds=deadline_seconds, max_new_candidates=max_new_candidates)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/cron/run")
+def cron_run(rounds: int = 3):
+    """
+    Scheduled entrypoint -- same pipeline as the dashboard button, minus the
+    human. Authenticated by bearer token in AuthMiddleware, not a session.
+
+    GET rather than POST because that is what schedulers send: Vercel Cron
+    issues a plain GET, as do the free external cron services. It is not a
+    safe/idempotent read despite the verb, which is why it is walled off
+    behind its own token and path.
+
+    A single run admits at most max_new_candidates articles, so a backlog
+    needs several passes -- which is what the "click Run Scouts again" advice
+    amounted to. Here it just loops instead, up to `rounds` times, stopping
+    early once a run reports nothing deferred. Each round re-checks the
+    deadline itself, so this cannot overrun the function timeout.
+    """
+    started = time.monotonic()
+    results = []
+    for _ in range(max(1, rounds)):
+        remaining = pipeline.DEFAULT_DEADLINE_SECONDS - (time.monotonic() - started)
+        if remaining < 30:
+            break  # not enough time left to review anything; leave it for the next tick
+        result = pipeline.run_pipeline(
+            deadline_seconds=remaining,
+            max_new_candidates=pipeline.DEFAULT_MAX_NEW_CANDIDATES,
+        )
+        results.append(result)
+        if not result.get("deferred"):
+            break  # nothing left waiting -- another pass would just refetch the feeds
+
+    return {
+        "rounds": len(results),
+        "accepted": sum(r["accepted"] for r in results),
+        "rejected": sum(r["rejected"] for r in results),
+        "new_articles": sum(r["new_articles"] for r in results),
+        "pending": results[-1]["pending"] if results else None,
+        "deferred": results[-1]["deferred"] if results else None,
+        "scout_errors": results[-1]["scout_errors"] if results else [],
+        "review_errors": [e for r in results for e in r["review_errors"]],
+        "seconds": round(time.monotonic() - started, 1),
+    }
 
 
 # ---------- Articles ----------

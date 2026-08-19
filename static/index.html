@@ -24,6 +24,19 @@
     <div class="topbar-actions">
       <div class="edition-date" id="edition-date"></div>
       <button id="clear-btn" class="btn btn-ghost">Clear Articles</button>
+      <div class="auto-run">
+        <label class="auto-switch" title="Keep fetching on a schedule while this page is open">
+          <input type="checkbox" id="auto-toggle">
+          <span>Auto</span>
+        </label>
+        <select id="auto-interval" class="auto-interval" disabled>
+          <option value="15">every 15 min</option>
+          <option value="30" selected>every 30 min</option>
+          <option value="60">every hour</option>
+          <option value="120">every 2 hours</option>
+        </select>
+        <span id="auto-status" class="auto-status"></span>
+      </div>
       <button id="run-btn" class="btn btn-primary">Run Scouts</button>
     </div>
   </div>

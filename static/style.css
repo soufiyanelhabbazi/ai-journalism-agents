@@ -635,3 +635,47 @@ textarea:focus, input:focus {
   letter-spacing: 0.02em;
   margin: -2px 0 8px;
 }
+
+/* ---------- Auto-run control ---------- */
+.auto-run {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-left: 1px solid var(--border-soft);
+  border-right: 1px solid var(--border-soft);
+}
+
+.auto-switch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.auto-switch input { accent-color: var(--accent); cursor: pointer; }
+.auto-switch:hover span { color: var(--text); }
+
+.auto-interval {
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  font-size: 0.78rem;
+  font-family: inherit;
+}
+
+.auto-interval:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Countdown to the next scheduled run. Monospace so the digits don't
+   reflow the toolbar every time the number ticks down. */
+.auto-status {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--accent);
+  min-width: 92px;
+}

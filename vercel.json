@@ -4,5 +4,11 @@
     "app/main.py": {
       "includeFiles": "static/**"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/run",
+      "schedule": "0 6 * * *"
+    }
+  ]
 }

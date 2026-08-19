@@ -352,13 +352,21 @@ function alertsFromRun(result) {
   return alerts;
 }
 
+let runInFlight = false;
+
 async function runPipeline() {
+  // Auto-run and the button share this, and a run can last minutes -- so
+  // overlapping runs are refused outright. Two concurrent runs would review
+  // the same pending rows twice and pay for it twice.
+  if (runInFlight) return null;
+  runInFlight = true;
   const btn = el("run-btn");
   btn.disabled = true;
   btn.textContent = "Scouting...";
+  let result = null;
   try {
     const res = await fetch("/api/run", { method: "POST" });
-    const result = await res.json();
+    result = await res.json();
     if (res.ok) {
       el("stat-seen").textContent = result.candidates_seen;
       el("stat-new").textContent = result.new_articles;
@@ -368,14 +376,104 @@ async function runPipeline() {
       renderAlerts(alertsFromRun(result));
     } else {
       renderAlerts([{ level: "error", title: "Pipeline run failed", lines: [result.detail || "unknown error"] }]);
+      result = null;
     }
   } catch (e) {
     renderAlerts([{ level: "error", title: "Pipeline run failed", lines: [e.message] }]);
+    result = null;
   } finally {
+    runInFlight = false;
     btn.disabled = false;
     btn.textContent = "Run Scouts";
     loadFeed();
   }
+  return result;
+}
+
+
+// ---------- Auto-run ----------
+//
+// One run admits a capped number of new candidates, so clearing a busy
+// morning's feeds took several clicks. This does the clicking: it runs on an
+// interval, and whenever a run reports work left over (deferred > 0) it goes
+// again shortly instead of idling until the next slot, so a backlog drains
+// on its own.
+//
+// Browser-side, so it only runs while this page is open -- that is the
+// trade-off for needing no setup at all. For runs that continue with the
+// laptop shut, set CRON_SECRET and use the scheduled /api/cron/run endpoint.
+
+const AUTO_KEY = "safircom.autorun";
+const BACKLOG_DELAY_MS = 15000;  // gap between back-to-back catch-up runs
+
+let autoTimer = null;
+let autoTickTimer = null;
+let autoNextAt = null;
+
+function loadAutoSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(AUTO_KEY)) || { on: false, minutes: 30 };
+  } catch {
+    return { on: false, minutes: 30 };
+  }
+}
+
+function saveAutoSettings(s) {
+  localStorage.setItem(AUTO_KEY, JSON.stringify(s));
+}
+
+function renderAutoStatus() {
+  const box = el("auto-status");
+  const on = el("auto-toggle").checked;
+  if (!on) { box.textContent = ""; return; }
+  if (runInFlight) { box.textContent = "running now…"; return; }
+  if (!autoNextAt) { box.textContent = "scheduled"; return; }
+  const secs = Math.max(0, Math.round((autoNextAt - Date.now()) / 1000));
+  box.textContent = secs >= 60
+    ? `next run in ${Math.round(secs / 60)}m`
+    : `next run in ${secs}s`;
+}
+
+function scheduleAutoRun(delayMs) {
+  clearTimeout(autoTimer);
+  autoNextAt = Date.now() + delayMs;
+  autoTimer = setTimeout(autoRunTick, delayMs);
+  renderAutoStatus();
+}
+
+async function autoRunTick() {
+  if (!el("auto-toggle").checked) return;
+  const result = await runPipeline();
+  if (!el("auto-toggle").checked) return;  // turned off mid-run
+  const intervalMs = Number(el("auto-interval").value) * 60000;
+  // Still work queued? Come straight back for it rather than waiting out
+  // the full interval -- this is what draining a backlog by hand looked like.
+  scheduleAutoRun(result && result.deferred > 0 ? BACKLOG_DELAY_MS : intervalMs);
+}
+
+function applyAutoRun({ runNow }) {
+  const on = el("auto-toggle").checked;
+  const minutes = Number(el("auto-interval").value);
+  saveAutoSettings({ on, minutes });
+  el("auto-interval").disabled = !on;
+  clearTimeout(autoTimer);
+  clearInterval(autoTickTimer);
+  autoNextAt = null;
+
+  if (!on) { renderAutoStatus(); return; }
+  autoTickTimer = setInterval(renderAutoStatus, 5000);  // keep the countdown honest
+  if (runNow) autoRunTick();
+  else scheduleAutoRun(minutes * 60000);
+}
+
+function initAutoRun() {
+  const s = loadAutoSettings();
+  el("auto-toggle").checked = !!s.on;
+  el("auto-interval").value = String(s.minutes || 30);
+  el("auto-interval").disabled = !s.on;
+  // Resuming a saved setting shouldn't fire a run the instant the page
+  // loads -- a refresh would then always cost a full pipeline run.
+  applyAutoRun({ runNow: false });
 }
 
 async function clearArticles() {
@@ -460,6 +558,8 @@ el("save-btn").addEventListener("click", saveConfig);
 el("run-btn").addEventListener("click", runPipeline);
 el("clear-btn").addEventListener("click", clearArticles);
 el("health-btn").addEventListener("click", runHealthCheck);
+el("auto-toggle").addEventListener("change", () => applyAutoRun({ runNow: el("auto-toggle").checked }));
+el("auto-interval").addEventListener("change", () => applyAutoRun({ runNow: false }));
 el("add-domain-btn").addEventListener("click", () => {
   el("domains-list").insertAdjacentHTML("beforeend", domainRowTemplate());
 });
@@ -469,5 +569,6 @@ el("domain-filter").addEventListener("change", () => {
 });
 
 setEditionDate();
+initAutoRun();
 loadConfig();
 loadFeed();
