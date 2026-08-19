@@ -296,7 +296,10 @@ def _create_with_fallback(providers, **kwargs):
                     time.sleep(2 ** attempt * 5)  # 5s, 10s
             except Exception as e:
                 provider_error = e
-                break  # not a rate limit -- retrying this provider won't help
+                if _is_transient(e) and attempt < max_attempts - 1:
+                    time.sleep(1)
+                    continue
+                break  # retrying this provider won't help
         failures.append(f"{label} ({model_name}): {provider_error}")
 
     # Report *every* provider's failure, not just the last one. Raising only
@@ -304,6 +307,20 @@ def _create_with_fallback(providers, **kwargs):
     # primary's -- production spent a long time looking like a dead Groq
     # model when the actual fault was Gemini failing first, invisibly.
     raise AllProvidersFailedError("All providers failed -- " + " | ".join(failures))
+
+
+# Every judgment call here is made with tool_choice forcing a specific
+# function, but a model can still return an empty completion -- Groq answers
+# that with a 400 "tool_use_failed: model did not call a tool". It's a
+# sampling fluke, not a configuration problem, and a plain retry clears it,
+# so it shouldn't be lumped in with the permanent 400s that make retrying
+# pointless. Also covers server-side blips worth one more attempt.
+_TRANSIENT_MARKERS = ("tool_use_failed", "internal_server_error", "service_unavailable")
+
+
+def _is_transient(error: Exception) -> bool:
+    message = str(error).lower()
+    return any(marker in message for marker in _TRANSIENT_MARKERS)
 
 
 def _parse_tool_call(response, fallback_reason: str) -> dict:
