@@ -70,11 +70,37 @@ LLM_MODEL = env("GEMINI_MODEL", "gemini-flash-lite-latest")
 # a dashboard edit rather than a redeploy; /api/health lists what the key
 # can currently reach.
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
-GROQ_MODEL = env("GROQ_MODEL", "llama-3.1-8b-instant")
+GROQ_MODEL = env("GROQ_MODEL", "openai/gpt-oss-120b")
 
 
 class AllProvidersFailedError(RuntimeError):
     """Every configured provider failed; the message names each one's error."""
+
+
+def _check_api_key_shape(name: str, key: str) -> None:
+    """
+    Reject a key that can't possibly work *before* it becomes an HTTP header.
+
+    An API key is sent as `Authorization: Bearer <key>`, and header values
+    can't contain newlines. If one does, h11 refuses to serialize the
+    request and the OpenAI SDK reports the result as a bare
+    "Connection error." -- which reads as a network outage and sends you
+    looking in entirely the wrong place. That is exactly what happened in
+    production: GEMINI_API_KEY had been set to the contents of a Google
+    service-account JSON file (~1500 chars, multi-line) instead of an AI
+    Studio API key, and every judgment call failed for days while the feed
+    fetching beside it worked perfectly.
+
+    A wrong-but-well-formed key is left alone -- the provider's own 400
+    ("Please pass a valid API key") is already a clear answer.
+    """
+    if len(key.split()) != 1:
+        raise RuntimeError(
+            f"{name} contains whitespace or line breaks, so it cannot be sent as an "
+            f"HTTP header ({len(key)} chars). This usually means a JSON key file or a "
+            f"multi-line block was pasted in instead of the API key itself. Set it to "
+            f"the single-line key string and redeploy."
+        )
 
 
 def get_client() -> OpenAI:
@@ -84,8 +110,10 @@ def get_client() -> OpenAI:
         if not key:
             raise RuntimeError(
                 "GEMINI_API_KEY is not set. Add it in your host's environment "
-                "variables (Vercel: Settings -> Environment Variables) and redeploy."
+                "variables (Vercel: Settings -> Environment Variables) and redeploy. "
+                "Free key, no credit card: https://aistudio.google.com/apikey"
             )
+        _check_api_key_shape("GEMINI_API_KEY", key)
         _gemini_client = OpenAI(api_key=key, base_url=LLM_BASE_URL)
     return _gemini_client
 
@@ -99,6 +127,7 @@ def get_groq_client() -> OpenAI:
         # rather than being dressed up as an outage.
         if not key or key == "your-key-here":
             raise RuntimeError("GROQ_API_KEY is not set (optional fallback provider)")
+        _check_api_key_shape("GROQ_API_KEY", key)
         _groq_client = OpenAI(api_key=key, base_url=GROQ_BASE_URL)
     return _groq_client
 

@@ -152,14 +152,25 @@ def _secret_report(name: str) -> dict:
     if raw is None:
         return {"set": False}
     stripped = raw.strip()
-    return {
+    report = {
         "set": bool(stripped),
         "length": len(stripped),
-        # The trap: invisible in a hosting dashboard, fatal for a header value.
-        # env() strips it now, so this is a warning about the stored value,
-        # not a live failure.
+        # Invisible in a hosting dashboard, and fatal for a header value.
+        # env() strips it now, so this is a note about the stored value
+        # rather than a live failure.
         "had_surrounding_whitespace": raw != stripped,
+        # Stripping can't save this one: whitespace *inside* the value still
+        # makes an illegal header, and it's how a pasted JSON key file
+        # disguises itself as a network outage.
+        "has_internal_whitespace": len(stripped.split()) > 1,
     }
+    if report["has_internal_whitespace"]:
+        report["problem"] = (
+            f"{name} spans multiple words/lines ({len(stripped)} chars) -- it looks like a "
+            f"JSON key file or a pasted block, not a single-line API key. Replace it with "
+            f"the key string itself and redeploy."
+        )
+    return report
 
 
 def _ping_provider(get_client_fn, model: str) -> dict:

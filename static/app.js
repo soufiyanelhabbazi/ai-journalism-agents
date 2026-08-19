@@ -383,11 +383,19 @@ async function runHealthCheck() {
     const alerts = [];
 
     const badEnv = Object.entries(h.env || {})
-      .filter(([, v]) => !v.set || v.had_surrounding_whitespace)
-      .map(([k, v]) => !v.set
-        ? `${k} — not set`
-        : `${k} — has leading/trailing whitespace; re-paste it without a trailing newline`);
-    if (badEnv.length) alerts.push({ level: "warn", title: "Environment variables", lines: badEnv });
+      .filter(([, v]) => !v.set || v.had_surrounding_whitespace || v.has_internal_whitespace)
+      .map(([k, v]) => {
+        if (!v.set) return `${k} — not set`;
+        if (v.problem) return v.problem;
+        return `${k} — has leading/trailing whitespace; re-paste it without a trailing newline`;
+      });
+    if (badEnv.length) {
+      alerts.push({
+        level: Object.values(h.env || {}).some(v => v.has_internal_whitespace) ? "error" : "warn",
+        title: "Environment variables",
+        lines: badEnv,
+      });
+    }
 
     for (const [name, key] of [["Gemini", "gemini"], ["Groq (optional fallback)", "groq"], ["Database", "database"]]) {
       const r = h[key];
