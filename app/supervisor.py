@@ -336,15 +336,22 @@ def _parse_tool_call(response, fallback_reason: str) -> dict:
 def specialist_review(article: dict, domains: list[dict]) -> dict:
     """Ask a domain-desk agent which desk this article fits and whether it meets that desk's standard."""
     desk_listing = "\n".join(f"- {d['name']}: {d['rubric']}" for d in domains)
-    prompt = f"""You are triaging incoming articles for a newsroom with the following desks. Read the article, decide which single desk it best fits by actual subject matter -- not by whether a desk's name literally appears in the text -- and judge whether it meets that desk's specific standard.
+    prompt = f"""You are the newsroom secretary (سكرتير التحرير) of a Moroccan news agency. Incoming copy crosses your desk and you route each item to the section that will handle it.
 
 DESKS:
 {desk_listing}
 
+ROUTING IS YOUR JOB, JUDGING FIT IS NOT.
+Every item that carries real news gets routed somewhere. Choose the desk that best matches the article's actual subject matter -- not whether a desk's name appears in the text. If it doesn't clearly belong to a specialised desk, route it to the general-news desk. Never reject an article because it "isn't political enough" or doesn't suit a particular beat: that is a routing decision, not a quality one.
+
+Reject at this stage ONLY when the item is not usable copy at all -- it carries no actual information, it is pure advertising, or it is plainly fabricated. Anything else you route onward; the director of publication makes the final call.
+
+Routine Moroccan news is normal, publishable copy: security operations and seizures, road accidents and civil-protection callouts, weather bulletins, official statements and communiqués, royal messages, court rulings, regional and local items. These are the daily substance of the agency, not marginal material.
+
 ARTICLE TO REVIEW:
 {_article_block(article)}
 
-Pick exactly one desk from the list above and call propose_domain_verdict with your pick and verdict. Write the "reason" in the same language as the article itself (e.g. Arabic if the article is in Arabic) -- never translate it to English."""
+Pick exactly one desk from the list above and call propose_domain_verdict. Write the "reason" in the same language as the article itself (e.g. Arabic if the article is in Arabic) -- never translate it to English."""
 
     tool = {
         "type": "function",
@@ -385,16 +392,26 @@ def editor_review(article: dict, rubric: str, domain: str | None = None, special
     to it -- this is the actual quality gate, not a rubber stamp.
     """
     if domain and specialist_reason:
-        context = f"""The "{domain}" desk has proposed ACCEPTING this article, with this justification:
+        context = f"""The "{domain}" desk has routed this article to you for publication, noting:
 "{specialist_reason}"
 
-Do not simply defer to the desk's judgment -- independently verify the article meets the standards below before ratifying. You may overrule the desk if it doesn't."""
+Form your own view rather than rubber-stamping theirs -- you can overrule the desk. But note that the desk's job was routing, not vetting, so its note tells you where the story belongs, not that it has been cleared."""
     else:
-        context = "Review this article independently against the standards below."
+        context = "Decide on this article yourself against the standards below."
 
-    prompt = f"""You are the editor-in-chief giving final sign-off before publication. Be precise: when in doubt, favor rejecting borderline material over accepting it, and always justify your decision against the standards.
+    prompt = f"""You are the director of publication (مدير النشر) of a Moroccan news agency, deciding what goes on the site today. You are filling a live news site, and an empty site is a failure too -- your job is to publish the day's news, not to protect the site from it.
 
 {context}
+
+HOW TO DECIDE:
+Start from the assumption that a news item is publishable, then look for a concrete reason it is not. If you cannot name a specific defect, publish it. Reject only for a real, stated fault -- no actual information, a personal opinion column or advertorial rather than news, unsourced rumour or invention, gratuitous sensationalism or an unjustified intrusion into a private person's life, or a duplicate of a story already covered.
+
+These are NOT reasons to reject, and you must not use them:
+- The item is short, or is a brief wire story. Length is not news value.
+- It is an official statement, communiqué, royal message, or an announcement from a ministry, the DGSN, or a wilaya. Publishing these is a core function of a Moroccan agency -- do not dismiss them as "press releases" or as lacking original reporting.
+- It is routine local news: a road accident, a seizure, an arrest, a fire, a weather warning, a court ruling. This is the daily substance of the site.
+- The text looks truncated or reads like an excerpt. That is an artefact of how the copy reached you, never the journalist's fault. Judge the news value of what you can actually read.
+- No individual source is named, where the story is an official announcement or established fact.
 
 UNIVERSAL EDITORIAL STANDARDS:
 {rubric}

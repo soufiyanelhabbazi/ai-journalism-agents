@@ -624,3 +624,14 @@ textarea:focus, input:focus {
 .alert-error { border-left-color: var(--reject); background: var(--reject-bg); }
 .alert-warn  { border-left-color: var(--pending); background: var(--pending-bg); }
 .alert-ok    { border-left-color: var(--accept); background: var(--accept-bg); }
+
+/* Exact fetch time under the card header. The relative "3h ago" beside the
+   source is the quick read; this is the one you can actually match against
+   a specific scout run. Rendered in Africa/Casablanca time. */
+.card-fetched {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  letter-spacing: 0.02em;
+  margin: -2px 0 8px;
+}

@@ -110,6 +110,15 @@ def run_pipeline(
                 deferred_count += 1
                 continue  # cap reached -- not inserted, so it's picked up fresh (still "new") next run
 
+            # Replace the feed's teaser with the real article body before
+            # anything judges it. Deliberately here, after dedupe and the cap,
+            # so this only ever costs one page fetch per article actually
+            # admitted -- not one per candidate seen.
+            candidate["content"] = scouts.fetch_full_text(
+                candidate["url"],
+                fallback=candidate.get("content") or candidate.get("summary") or "",
+            )
+
             article_id = db.insert_article(candidate)
             if article_id == 0:
                 continue  # race with the UNIQUE constraint, skip

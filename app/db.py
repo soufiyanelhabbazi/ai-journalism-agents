@@ -79,27 +79,72 @@ DEFAULT_CONFIG = {
     "min_word_count": 150,
     "exclude_keywords": [],       # article is rejected if it matches any
     "require_attribution": True,  # reject articles with no quote/'said'/'according to' signal
+    # The director of publication's standard. Written as what a Moroccan
+    # local agency actually publishes, because the previous version imported
+    # a Western investigative-desk standard -- "no press releases, named
+    # sources required, original reporting only" -- and it rejected exactly
+    # the material that fills a Moroccan news site every day: DGSN
+    # statements, royal messages, MAP wire copy, weather warnings, court and
+    # security items. Those are the product, not a compromise of it.
     "rubric": (
-        "Accept articles that are original reporting (not opinion pieces, not "
-        "press releases), cover verifiable events with named sources, and are "
-        "written in a neutral, non-sensational tone. Reject articles that are "
-        "primarily speculation, clickbait, sponsored content, or lack any "
-        "attribution for their claims."
-    ),  # the editor-in-chief's universal standards -- applied to every domain's proposed accepts
+        "You publish a Moroccan general-news site. Publish anything with real "
+        "news value for a Moroccan reader: official announcements and statements "
+        "(ministries, DGSN, wilayas, royal cabinet), security and court items, "
+        "accidents and civil-protection operations, weather warnings, regional "
+        "and local news, economy, sport, culture, and international news that "
+        "touches Morocco or interests Moroccan readers. A short wire item or an "
+        "official communiqué is normal, publishable news -- do not treat it as a "
+        "'press release' to be refused. Refuse only for a concrete reason: the "
+        "text carries no actual information, it is a personal opinion column or "
+        "advertorial rather than news, its claims are unsourced rumour or clearly "
+        "fabricated, it is sensationalist or invades private individuals' privacy "
+        "without public interest, or it duplicates a story already covered."
+    ),
+    # A Moroccan newsroom's actual desk structure. The old three-desk set
+    # (Politics / Sports / Art & Culture) had nowhere to route the majority
+    # of a Moroccan wire -- accidents, drug busts, weather, regional news --
+    # so the specialist was forced to file them under Politics and then
+    # rejected them for not being political. Misrouting, read as a quality
+    # problem. These desks cover the whole wire, and "أخبار عامة" catches
+    # whatever still doesn't fit.
     "domains": [
         {
-            "name": "Politics",
-            "rubric": "Covers government action, policy, elections, or legislation. Prioritize substance (what changed, who's affected) over pure punditry or campaign rhetoric.",
+            "name": "سياسة",
+            "rubric": "الحكومة والبرلمان والأحزاب والانتخابات والتشريع والدبلوماسية والنشاط الملكي الرسمي، بما في ذلك البلاغات والبرقيات الرسمية.",
         },
         {
-            "name": "Sports",
-            "rubric": "Covers matches, tournaments, transfers, or athletes. Judge by subject matter, not by whether the word 'sports' appears -- team names, match reports, and competition results all count.",
+            "name": "مجتمع",
+            "rubric": "الشأن الاجتماعي اليومي: التعليم والصحة والسكن والأسرة والهجرة والاحتجاجات الاجتماعية والظواهر المجتمعية وقضايا المستهلك.",
         },
         {
-            "name": "Art & Culture",
-            "rubric": "Covers cinema, music, literature, exhibitions, festivals, or other cultural output. A listing or program announcement alone doesn't count -- look for actual coverage or critique.",
+            "name": "أمن وقضاء",
+            "rubric": "عمليات المصالح الأمنية والاعتقالات وحجز الممنوعات والمخدرات والمحاكمات والأحكام القضائية وقضايا الجريمة.",
         },
-    ],  # each domain desk's own fit/quality criteria -- edit freely, add or remove desks
+        {
+            "name": "جهات وحوادث",
+            "rubric": "أخبار الجهات والمدن: حوادث السير والحرائق وتدخلات الوقاية المدنية والنشرات الإنذارية للأرصاد الجوية والبنية التحتية المحلية.",
+        },
+        {
+            "name": "اقتصاد",
+            "rubric": "المالية والاستثمار والفلاحة والصيد والصناعة والتجارة الخارجية والأسعار والتشغيل والمقاولات والقطاع البنكي.",
+        },
+        {
+            "name": "رياضة",
+            "rubric": "المباريات والبطولات والانتقالات والرياضيون والأندية والمنتخبات، وطنيا ودوليا.",
+        },
+        {
+            "name": "ثقافة وفن",
+            "rubric": "السينما والموسيقى والأدب والمعارض والمهرجانات والتراث والإنتاج الثقافي والفني وتغطيته ونقده.",
+        },
+        {
+            "name": "دولي",
+            "rubric": "الأخبار الدولية، وبالأولوية ما يمس المغرب أو يهم القارئ المغربي: العلاقات الخارجية والقضايا الإقليمية والأحداث العالمية الكبرى.",
+        },
+        {
+            "name": "أخبار عامة",
+            "rubric": "كل خبر ذي قيمة إخبارية لا يندرج بوضوح تحت مكتب آخر. استعمل هذا المكتب بدل رفض الخبر لمجرد أنه لا يناسب تخصصا معينا.",
+        },
+    ],  # each desk's own beat -- edit freely, add or remove desks
 }
 
 

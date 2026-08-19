@@ -86,15 +86,37 @@ async function saveConfig() {
   }
 }
 
+// created_at is written by the database at insert time, which is the moment
+// the scouts pulled the article in -- so it is the fetch time, not the
+// source's own publication date.
+function fetchedDate(iso) {
+  if (!iso) return null;
+  // Stored as UTC ("YYYY-MM-DD HH:MM:SS") with no zone marker; without the
+  // Z, browsers would read it as local time and the age would be wrong.
+  return new Date(iso.replace(" ", "T") + (iso.includes("Z") ? "" : "Z"));
+}
+
 function timeAgo(iso) {
-  if (!iso) return "";
-  const d = new Date(iso.includes("Z") ? iso : iso + "Z");
+  const d = fetchedDate(iso);
+  if (!d) return "";
   const diffMin = Math.round((Date.now() - d.getTime()) / 60000);
   if (diffMin < 1) return "just now";
   if (diffMin < 60) return `${diffMin}m ago`;
   const h = Math.round(diffMin / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.round(h / 24)}d ago`;
+}
+
+// "Fetched 20 Aug 2026, 14:32" -- an exact wall-clock time in Morocco, since
+// "3h ago" alone doesn't tell you which run an article came in on.
+function fetchedStamp(iso) {
+  const d = fetchedDate(iso);
+  if (!d) return "";
+  return "Fetched " + d.toLocaleString("en-GB", {
+    timeZone: "Africa/Casablanca",
+    day: "numeric", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
 }
 
 function stageLabel(stage) {
@@ -194,8 +216,9 @@ function cardTemplate(a) {
       <div class="card-top">
         <span class="card-source">${escapeHtml(a.source || "Unknown source")}</span>
         ${domainBadge}
-        <span class="card-time">${timeAgo(a.created_at)}</span>
+        <span class="card-time" title="${escapeHtml(fetchedStamp(a.created_at))}">${timeAgo(a.created_at)}</span>
       </div>
+      <div class="card-fetched">${escapeHtml(fetchedStamp(a.created_at))}</div>
       <h3 class="card-title" dir="auto"><a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.title || "Untitled")}</a></h3>
       ${reasonBlock}
       <div class="card-footer">

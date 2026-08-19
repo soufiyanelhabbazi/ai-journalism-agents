@@ -70,6 +70,81 @@ def _clean_summary(entry) -> str:
     return entry.get("summary", "") or entry.get("description", "")
 
 
+# ---------------------------------------------------------------------------
+# Full article text
+#
+# Most Moroccan feeds publish a one- or two-sentence teaser in <description>,
+# not the article. Judging that teaser instead of the article was the single
+# biggest source of wrong rejections: the rule stage threw articles out for
+# being "6 words", and the editor threw others out with "المقال غير مكتمل"
+# (the text is truncated / ends in a 'read more' link) -- both complaints
+# about the feed, not the journalism. The same story could be accepted or
+# rejected purely by how much text its feed happened to include.
+#
+# So the article page itself is fetched and its body extracted. No new
+# dependency: a readability-grade parser is overkill when every one of these
+# sites marks paragraphs up as <p> inside the article body.
+# ---------------------------------------------------------------------------
+
+ARTICLE_FETCH_TIMEOUT = 8.0  # shorter than the feed timeout; there are many more of these
+
+# Containers that never hold article prose. Removed wholesale before looking
+# for paragraphs, so their text can't dilute or contaminate the body.
+_CHROME_RE = re.compile(
+    r"<(script|style|noscript|figure|figcaption|nav|header|footer|aside|form)\b[^>]*>.*?</\1>",
+    re.S | re.I,
+)
+_PARA_RE = re.compile(r"<p\b[^>]*>(.*?)</p>", re.S | re.I)
+
+# Site furniture that *is* marked up as a paragraph: newsletter signup boxes,
+# the masthead address block, share prompts, related-article teasers.
+_BOILERPLATE_RE = re.compile(
+    r"اشترك|القائمة البريدية|جميع الحقوق|رقم الهاتف|البريد الإلكتروني|تابعونا"
+    r"|اقرأ أيضا|اقرأ أيضاً|شارك المقال|الوسوم|واتساب|أضف تعليق|التعليقات"
+    r"|subscribe|newsletter|all rights reserved|read also",
+    re.IGNORECASE,
+)
+
+# A real article paragraph runs to a sentence or more; anything shorter is a
+# caption, byline, timestamp, or menu item that survived the cuts above.
+_MIN_PARAGRAPH_WORDS = 8
+
+
+def extract_article_text(page_html: str) -> str:
+    """Pull the article body out of a fetched news page."""
+    doc = _CHROME_RE.sub(" ", page_html)
+    paragraphs = []
+    for raw in _PARA_RE.findall(doc):
+        text = re.sub(r"\s+", " ", _strip_html(raw))
+        if len(text.split()) >= _MIN_PARAGRAPH_WORDS and not _BOILERPLATE_RE.search(text):
+            paragraphs.append(text)
+    return "\n\n".join(paragraphs)
+
+
+def fetch_full_text(url: str, fallback: str = "") -> str:
+    """
+    Fetch an article page and return its body text.
+
+    Returns `fallback` unchanged unless the page yields something genuinely
+    better, because a partial extraction is worse than the feed's own
+    summary. Some sites defeat this entirely -- ar.yabiladi.com answers with
+    HTTP 200 and a zero-byte body -- and that has to degrade to the teaser
+    rather than blank the article out.
+    """
+    try:
+        response = httpx.get(
+            url, timeout=ARTICLE_FETCH_TIMEOUT, headers=HEADERS, follow_redirects=True
+        )
+        response.raise_for_status()
+        extracted = extract_article_text(response.text)
+    except Exception:
+        return fallback  # unreachable, blocked, or unparseable -- the teaser still works
+
+    if len(extracted.split()) > len(fallback.split()):
+        return extracted
+    return fallback
+
+
 def fetch_from_feed(feed_url: str, max_items: int = 15) -> list[dict]:
     """Fetch and normalize entries from a single RSS/Atom feed."""
     response = httpx.get(feed_url, timeout=FETCH_TIMEOUT, headers=HEADERS, follow_redirects=True)
