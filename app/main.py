@@ -263,6 +263,12 @@ class Domain(BaseModel):
     rubric: str  # this desk's own fit/quality standard, judged by the specialist agent
 
 
+class SourceSet(BaseModel):
+    label: str
+    feeds: list[str]
+    rubric: str
+
+
 class ConfigUpdate(BaseModel):
     feeds: list[str] | None = None
     banned_domains: list[str] | None = None
@@ -271,6 +277,8 @@ class ConfigUpdate(BaseModel):
     require_attribution: bool | None = None
     rubric: str | None = None  # the editor-in-chief's universal standard
     domains: list[Domain] | None = None
+    sources: dict[str, SourceSet] | None = None  # edition id -> feeds + that edition's standard
+    active_source: str | None = None             # which edition the scouts pull from
 
 
 @app.get("/api/config")

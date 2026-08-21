@@ -69,37 +69,121 @@ def _migrate(conn):
             conn.execute(f"ALTER TABLE articles ADD COLUMN {col} {ddl_type}")
 
 
+# The director of publication's standard, per edition. Written as what these
+# newsrooms actually publish, because the original imported a Western
+# investigative-desk standard -- "no press releases, named sources required,
+# original reporting only" -- and it rejected exactly the material that fills
+# such a site every day: ministry and DGSN statements, wire copy, weather
+# warnings, court and security items. Those are the product, not a
+# compromise of it.
+MOROCCAN_RUBRIC = (
+    "You publish a Moroccan general-news site. Publish anything with real "
+    "news value for a Moroccan reader: official announcements and statements "
+    "(ministries, DGSN, wilayas, royal cabinet), security and court items, "
+    "accidents and civil-protection operations, weather warnings, regional "
+    "and local news, economy, sport, culture, and international news that "
+    "touches Morocco or interests Moroccan readers. A short wire item or an "
+    "official communiqué is normal, publishable news -- do not treat it as a "
+    "'press release' to be refused. Refuse only for a concrete reason: the "
+    "text carries no actual information, it is a personal opinion column or "
+    "advertorial rather than news, its claims are unsourced rumour or clearly "
+    "fabricated, it is sensationalist or invades private individuals' privacy "
+    "without public interest, or it duplicates a story already covered."
+)
+
+# Same posture, different audience. This edition draws on pan-Arab and
+# international outlets (France 24 Arabic, BBC Arabic, Al Jazeera, DW...),
+# so relevance is judged for an Arabic-speaking readership generally. A
+# Moroccan angle is a bonus here, never a requirement -- applying the
+# Moroccan rubric to this wire would reject Gulf, Levant and world stories
+# for being "irrelevant", which is the exact over-rejection already fixed
+# once for the Moroccan edition.
+ARABIC_RUBRIC = (
+    "You publish an Arabic-language general-news site drawing on international "
+    "and pan-Arab agencies. Publish anything with real news value for an "
+    "Arabic-speaking reader: politics and diplomacy, conflicts and their "
+    "humanitarian consequences, economy and energy, science, health, sport, "
+    "and culture, anywhere in the world. Arab and Middle Eastern stories are "
+    "core to this edition, and a Moroccan connection is welcome but never "
+    "required -- do not reject a story for lacking one. Wire copy and official "
+    "statements are normal, publishable news, not 'press releases' to refuse. "
+    "Where reputable outlets disagree on contested claims, prefer coverage that "
+    "attributes them clearly rather than refusing the story. Refuse only for a "
+    "concrete reason: the text carries no actual information, it is a personal "
+    "opinion column or advertorial rather than news, its claims are unsourced "
+    "rumour or clearly fabricated, it is one-sided propaganda for a party to a "
+    "conflict rather than reporting, it is sensationalist or invades private "
+    "individuals' privacy without public interest, or it duplicates a story "
+    "already covered."
+)
+
+
 DEFAULT_CONFIG = {
-    "feeds": [
-        "http://feeds.bbci.co.uk/news/world/rss.xml",
-        "https://www.reutersagency.com/feed/?best-topics=tech",
-        "https://feeds.npr.org/1001/rss.xml",
-    ],
+    # Which source set the scouts pull from. The two editions are separate
+    # products with separate audiences -- a Moroccan wire and a pan-Arab one
+    # -- so each carries its own feed list AND its own editorial standard.
+    # Sharing one rubric across both would drag the Arabic edition back into
+    # over-rejection: a standard written around "news value for a Moroccan
+    # reader" throws out Gulf and Levant stories for being irrelevant.
+    "active_source": "moroccan",
+    "sources": {
+        "moroccan": {
+            "label": "Moroccan press",
+            # hespress.com and mapnews.ma are deliberately absent: both 403
+            # from Vercel's datacenter IPs (verified working from a home IP
+            # with the identical request), so including them guarantees a
+            # failed-source warning on every single run. Add them back if
+            # this ever moves off Vercel or gains a proxy.
+            "feeds": [
+                "https://al3omk.com/feed",
+                "https://alyaoum24.com/feed",
+                "https://assabah.ma/feed",
+                "https://www.barlamane.com/feed/",
+                "https://ar.yabiladi.com/rss",
+                "https://rue20.com/feed",
+                "https://kifache.com/feed",
+                "https://chouftv.ma/press/feed",
+            ],
+            "rubric": MOROCCAN_RUBRIC,
+        },
+        "arabic": {
+            "label": "Arabic sources",
+            # Every one of these was measured through the real fetch path
+            # before being listed. Not included, with reasons:
+            #   skynewsarabia.com -- article pages take 15-42s to answer,
+            #     which would eat the run deadline for one story.
+            #   alarabiya.net, alaraby.co.uk -- 403 to this fetcher.
+            #   arabic.rt.com -- works, but left out on editorial grounds:
+            #     state outlet, and the Arabic rubric refuses one-sided
+            #     propaganda anyway. Add it back if you disagree.
+            #
+            # france24.com is the one partial case: its feed is fine, but
+            # its article pages answer 403 to any header combination, so
+            # only the RSS summary is available (~62 words, median). That
+            # clears the word minimum and reaches the editor, it just gets
+            # judged on the summary rather than the full text.
+            "feeds": [
+                "https://www.france24.com/ar/rss",
+                "https://feeds.bbci.co.uk/arabic/rss.xml",
+                "https://www.aljazeera.net/aljazeerarss/ar/home.xml",
+                "https://rss.dw.com/rdf/rss-ar-all",
+                "https://arabic.euronews.com/rss",
+                "https://arabic.cnn.com/api/v1/rss/rss.xml",
+                "https://www.independentarabia.com/rss.xml",
+                "https://www.alquds.co.uk/feed/",
+            ],
+            "rubric": ARABIC_RUBRIC,
+        },
+    },
+    # Legacy flat list, kept so an older stored config still runs. The
+    # pipeline prefers the active source set and only falls back to this.
+    "feeds": [],
     "banned_domains": [],
     "min_word_count": 150,
     "exclude_keywords": [],       # article is rejected if it matches any
     "require_attribution": True,  # reject articles with no quote/'said'/'according to' signal
-    # The director of publication's standard. Written as what a Moroccan
-    # local agency actually publishes, because the previous version imported
-    # a Western investigative-desk standard -- "no press releases, named
-    # sources required, original reporting only" -- and it rejected exactly
-    # the material that fills a Moroccan news site every day: DGSN
-    # statements, royal messages, MAP wire copy, weather warnings, court and
-    # security items. Those are the product, not a compromise of it.
-    "rubric": (
-        "You publish a Moroccan general-news site. Publish anything with real "
-        "news value for a Moroccan reader: official announcements and statements "
-        "(ministries, DGSN, wilayas, royal cabinet), security and court items, "
-        "accidents and civil-protection operations, weather warnings, regional "
-        "and local news, economy, sport, culture, and international news that "
-        "touches Morocco or interests Moroccan readers. A short wire item or an "
-        "official communiqué is normal, publishable news -- do not treat it as a "
-        "'press release' to be refused. Refuse only for a concrete reason: the "
-        "text carries no actual information, it is a personal opinion column or "
-        "advertorial rather than news, its claims are unsourced rumour or clearly "
-        "fabricated, it is sensationalist or invades private individuals' privacy "
-        "without public interest, or it duplicates a story already covered."
-    ),
+    # Legacy single rubric, used only when no source set is active.
+    "rubric": MOROCCAN_RUBRIC,
     # A Moroccan newsroom's actual desk structure. The old three-desk set
     # (Politics / Sports / Art & Culture) had nowhere to route the majority
     # of a Moroccan wire -- accidents, drug busts, weather, regional news --

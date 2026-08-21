@@ -24,6 +24,27 @@ DEFAULT_DEADLINE_SECONDS = 240
 DEFAULT_MAX_NEW_CANDIDATES = 15
 
 
+def resolve_active_source(config: dict) -> tuple[list[str], dict]:
+    """
+    Pick the feeds and the editorial standard for the active edition.
+
+    Each source set carries its own rubric, so switching edition switches
+    both what gets fetched and what it is judged against -- judging a
+    pan-Arab wire by "news value for a Moroccan reader" would reject most of
+    it. Returns the feed list plus a config whose "rubric" is the active
+    edition's, so every downstream stage reads it the way it always has.
+
+    Falls back to the flat top-level "feeds"/"rubric" when no source sets are
+    configured, so a config stored before editions existed still runs.
+    """
+    sources = config.get("sources") or {}
+    active = config.get("active_source")
+    chosen = sources.get(active) or next(iter(sources.values()), None)
+    if not chosen:
+        return config.get("feeds", []), config
+    return chosen.get("feeds", []), {**config, "rubric": chosen.get("rubric") or config.get("rubric", "")}
+
+
 def run_pipeline(
     deadline_seconds: float | None = DEFAULT_DEADLINE_SECONDS,
     max_new_candidates: int | None = DEFAULT_MAX_NEW_CANDIDATES,
@@ -34,7 +55,7 @@ def run_pipeline(
         return deadline_seconds is not None and (time.monotonic() - start) >= deadline_seconds
 
     config = db.get_config()
-    feeds = config.get("feeds", [])
+    feeds, config = resolve_active_source(config)
 
     candidates, scout_errors = scouts.run_scouts(feeds)
 

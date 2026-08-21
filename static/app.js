@@ -49,27 +49,102 @@ async function loadConfig() {
   applyConfig(cfg);
 }
 
+// ---------- Editions ----------
+//
+// Two source sets -- Moroccan press and Arabic sources -- each with its own
+// feeds AND its own editorial standard. They are separate products: judging
+// a pan-Arab wire by "news value for a Moroccan reader" would reject most of
+// it, so the rubric travels with the edition rather than sitting above both.
+//
+// The whole sources object is held here and written back on save, because
+// the form only ever shows one edition at a time; sending just the visible
+// one would wipe the other.
+let sources = {};
+let activeSource = null;
+
+function activeSet() {
+  return sources[activeSource] || { label: "", feeds: [], rubric: "" };
+}
+
+function renderEditionPicker() {
+  const ids = Object.keys(sources);
+  el("edition-picker").innerHTML = ids.map(id => `
+    <label class="edition-option ${id === activeSource ? "active" : ""}">
+      <input type="radio" name="edition" value="${escapeHtml(id)}" ${id === activeSource ? "checked" : ""}>
+      <span>${escapeHtml(sources[id].label || id)}</span>
+      <span class="edition-count">${(sources[id].feeds || []).length} sources</span>
+    </label>
+  `).join("");
+  const name = activeSet().label || activeSource || "this edition";
+  el("rubric-edition-name").textContent = name;
+  el("feeds-edition-name").textContent = name;
+
+  el("edition-picker").querySelectorAll("input[name=edition]").forEach(input => {
+    input.addEventListener("change", () => {
+      // Keep whatever is on screen before swapping, so edits to one edition
+      // aren't silently lost by clicking across to the other.
+      captureEditionFromForm();
+      activeSource = input.value;
+      showActiveEdition();
+      renderEditionPicker();
+    });
+  });
+}
+
+function showActiveEdition() {
+  el("feeds").value = (activeSet().feeds || []).join("\n");
+  el("rubric").value = activeSet().rubric || "";
+}
+
+function captureEditionFromForm() {
+  if (!sources[activeSource]) return;
+  sources[activeSource].feeds = el("feeds").value.split("\n").map(s => s.trim()).filter(Boolean);
+  sources[activeSource].rubric = el("rubric").value;
+}
+
 function applyConfig(cfg) {
-  el("rubric").value = cfg.rubric || "";
+  sources = cfg.sources || {};
+  activeSource = cfg.active_source && sources[cfg.active_source]
+    ? cfg.active_source
+    : Object.keys(sources)[0] || null;
+
   el("min-words").value = cfg.min_word_count ?? 150;
   el("banned").value = (cfg.banned_domains || []).join("\n");
-  el("feeds").value = (cfg.feeds || []).join("\n");
   el("exclude-keywords").value = (cfg.exclude_keywords || []).join("\n");
   el("require-attribution").checked = cfg.require_attribution !== false;
+
+  if (activeSource) {
+    showActiveEdition();
+    renderEditionPicker();
+  } else {
+    // Config predating editions: fall back to the flat feeds/rubric fields.
+    el("feeds").value = (cfg.feeds || []).join("\n");
+    el("rubric").value = cfg.rubric || "";
+    el("edition-picker").innerHTML = "";
+  }
+
   renderDomains(cfg.domains);
   populateDomainFilter(cfg.domains);
 }
 
 async function saveConfig() {
+  captureEditionFromForm();
   const payload = {
-    rubric: el("rubric").value,
     min_word_count: parseInt(el("min-words").value || "0", 10),
     banned_domains: el("banned").value.split("\n").map(s => s.trim()).filter(Boolean),
-    feeds: el("feeds").value.split("\n").map(s => s.trim()).filter(Boolean),
     exclude_keywords: el("exclude-keywords").value.split("\n").map(s => s.trim()).filter(Boolean),
     require_attribution: el("require-attribution").checked,
     domains: readDomainsFromForm(),
   };
+  // Send both editions, not just the visible one -- the form shows one at a
+  // time, so a partial payload would blank the other's feeds and standard.
+  if (activeSource) {
+    payload.sources = sources;
+    payload.active_source = activeSource;
+  } else {
+    payload.rubric = el("rubric").value;
+    payload.feeds = el("feeds").value.split("\n").map(s => s.trim()).filter(Boolean);
+  }
   const status = el("save-status");
   status.textContent = "Saving...";
   const res = await fetch("/api/config", {
@@ -83,6 +158,7 @@ async function saveConfig() {
   if (res.ok) {
     const updated = await res.json();
     populateDomainFilter(updated.domains);
+    renderEditionPicker();  // the per-edition source counts change as feeds are edited
   }
 }
 

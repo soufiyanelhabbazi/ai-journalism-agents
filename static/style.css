@@ -679,3 +679,39 @@ textarea:focus, input:focus {
   color: var(--accent);
   min-width: 92px;
 }
+
+/* ---------- Edition picker ---------- */
+.edition-picker { display: flex; flex-direction: column; gap: 6px; }
+
+.edition-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  cursor: pointer;
+  font-size: 0.86rem;
+  color: var(--text-muted);
+}
+
+.edition-option:hover { border-color: var(--accent); color: var(--text); }
+.edition-option input { accent-color: var(--accent); cursor: pointer; }
+
+.edition-option.active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--pending-bg);
+}
+
+/* Feed count sits right-aligned so the two editions line up and can be
+   compared at a glance. */
+.edition-count {
+  margin-inline-start: auto;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-faint);
+}
+
+.edition-name { color: var(--accent); font-weight: 600; }
