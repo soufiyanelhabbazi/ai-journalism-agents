@@ -129,10 +129,11 @@ DEFAULT_CONFIG = {
     "sources": {
         "moroccan": {
             "label": "Moroccan press",
-            # hespress.com and mapnews.ma are deliberately absent: both 403
-            # from Vercel's datacenter IPs (verified working from a home IP
-            # with the identical request), so including them guarantees a
-            # failed-source warning on every single run. Add them back if
+            # hespress.com, mapnews.ma, rue20.com and chouftv.ma are
+            # deliberately absent: all four 403 from Vercel's datacenter IPs
+            # while serving the identical request fine from a home IP, so
+            # listing them guarantees a failed-source warning on every run.
+            # Confirmed against production, not assumed. Add them back if
             # this ever moves off Vercel or gains a proxy.
             "feeds": [
                 "https://al3omk.com/feed",
@@ -140,9 +141,7 @@ DEFAULT_CONFIG = {
                 "https://assabah.ma/feed",
                 "https://www.barlamane.com/feed/",
                 "https://ar.yabiladi.com/rss",
-                "https://rue20.com/feed",
                 "https://kifache.com/feed",
-                "https://chouftv.ma/press/feed",
             ],
             "rubric": MOROCCAN_RUBRIC,
         },
@@ -153,6 +152,8 @@ DEFAULT_CONFIG = {
             #   skynewsarabia.com -- article pages take 15-42s to answer,
             #     which would eat the run deadline for one story.
             #   alarabiya.net, alaraby.co.uk -- 403 to this fetcher.
+            #   independentarabia.com -- fetches fine locally but 403s from
+            #     Vercel's IPs, confirmed against production.
             #   arabic.rt.com -- works, but left out on editorial grounds:
             #     state outlet, and the Arabic rubric refuses one-sided
             #     propaganda anyway. Add it back if you disagree.
@@ -169,7 +170,6 @@ DEFAULT_CONFIG = {
                 "https://rss.dw.com/rdf/rss-ar-all",
                 "https://arabic.euronews.com/rss",
                 "https://arabic.cnn.com/api/v1/rss/rss.xml",
-                "https://www.independentarabia.com/rss.xml",
                 "https://www.alquds.co.uk/feed/",
             ],
             "rubric": ARABIC_RUBRIC,
