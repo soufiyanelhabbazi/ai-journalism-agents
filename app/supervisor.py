@@ -245,8 +245,15 @@ EDITOR_TOOL = {
 }
 
 
-def _article_block(article: dict) -> str:
-    body = (article.get("content") or article.get("summary") or "")[:4000]
+def _article_block(article: dict, limit: int = 4000) -> str:
+    """
+    The source article as the agents see it.
+
+    The judgment stages only need enough to rule on news value, but the writer
+    is asked to produce a full article from this and cannot report detail it
+    was never shown -- so it passes a larger limit.
+    """
+    body = (article.get("content") or article.get("summary") or "")[:limit]
     return f"""Title: {article.get('title')}
 Source: {article.get('source')}
 URL: {article.get('url')}
@@ -458,29 +465,36 @@ WRITER_TOOL = {
     },
 }
 
-# A fabricated (not real) example anchoring the target register and structure
-# -- inverted pyramid, formal attribution phrasing ("وأوضح المصدر ذاته أن...")
-# typical of professional Moroccan press. This narrows stylistic drift across
-# runs/temperature, and is what would let a future second writer provider
-# converge toward the same house voice rather than its own default style.
-STYLE_EXAMPLE = (
-    'أعلنت وزارة التربية الوطنية، في بلاغ رسمي، عن تأجيل الموسم الدراسي بأسبوع '
-    'كامل بسبب الأحوال الجوية. وأوضح المصدر ذاته أن القرار جاء بعد تشاور مع '
-    'النقابات التعليمية، مشيرا إلى أن الإدارات المحلية ستتولى تنظيم الحصص '
-    'الاستدراكية لاحقا.'
-)
-
-
-def write_article(article: dict, domain: str | None = None) -> dict:
+def write_article(article: dict, domain: str | None = None, style: dict | None = None) -> dict:
     """
     Ask a staff-writer agent to produce an original, publish-ready article
     covering the same story -- written in the voice of a professional
     Moroccan journalist, not a copy or light paraphrase of the source.
+
+    `style` is the owner-editable house voice from config: target length, tone
+    instructions, and a register example. Length matters most -- without an
+    explicit target the model writes a brief wire item whatever it is given,
+    which is why drafts kept coming back at 300-400 words.
     """
+    style = style or {}
+    target = int(style.get("target_words") or 500)
+    tone = (style.get("tone") or "").strip()
+    example = (style.get("example") or "").strip()
+    # A band rather than a single number: an exact count makes models pad or
+    # truncate to hit it, while a range lets the story decide inside it.
+    low, high = int(target * 0.85), int(target * 1.25)
     desk_context = f" for the {domain} desk" if domain else ""
+    house_voice = f"\n\nHOUSE STYLE (follow this):\n{tone}" if tone else ""
+    style_reference = (
+        f"\n\nSTYLE REFERENCE (tone and structure only -- this is a fabricated "
+        f"example, not a real event, and none of its facts belong in your "
+        f"article):\n{example}"
+        if example else ""
+    )
     prompt = f"""You are a professional Moroccan journalist writing{desk_context} for a Moroccan digital news outlet. Below is a source article -- your job is to write an ORIGINAL news article covering the same story, ready to publish.
 
 Hard rules:
+- LENGTH: write between {low} and {high} words. This is a real requirement, not a suggestion -- a short wire brief is not acceptable. Develop the story properly: background, context, what it means for readers, and any relevant detail present in the source. If the source is thin, expand on the context it does contain rather than padding with repetition or invented facts.
 - Write in the same language as the source article (Modern Standard Arabic / الفصحى for Arabic sources), in the register and structure of professional Moroccan press (e.g. Hespress, MAP, Al Ahdath) -- lead with the most newsworthy fact, then context, then supporting detail and any quotes.
 - Do NOT copy sentences or phrasing from the source. Express the same facts in your own original wording and structure, as if you independently reported this story -- not as a paraphrase or summary of the original text.
 - Do NOT invent facts, quotes, or details that are not present in the source. Stay strictly factually faithful -- only the expression is original, not the substance.
@@ -488,17 +502,21 @@ Hard rules:
 - Write an original headline, not the source's headline verbatim.
 - No HTML, no "read more" links, no meta-commentary about the source -- just the headline and clean article text.
 
-STYLE REFERENCE (tone and structure only -- this is a fabricated example, not a real event, and none of its facts belong in your article):
-{STYLE_EXAMPLE}
+{house_voice}{style_reference}
 
 SOURCE ARTICLE:
-{_article_block(article)}
+{_article_block(article, limit=8000)}
 
-Call submit_draft with your original headline and article."""
+Call submit_draft with your original headline and article. Remember the {low}-{high} word requirement."""
+
+    # Arabic runs about 2.5 tokens per word, so a 500-word target needs ~1250
+    # just for prose; the headroom covers the tool-call envelope and keeps a
+    # longer target from being silently cut off mid-sentence.
+    max_tokens = min(max(int(high * 3.5) + 500, 2000), 8000)
 
     response, provider = _create_with_fallback(
         WRITER_PROVIDERS,
-        max_tokens=2000,  # a real article needs far more room than a one-line verdict
+        max_tokens=max_tokens,
         temperature=0.4,  # a bit more room than judgment calls for natural, varied prose
         tools=[WRITER_TOOL],
         tool_choice={"type": "function", "function": {"name": "submit_draft"}},

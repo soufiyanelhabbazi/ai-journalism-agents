@@ -102,6 +102,11 @@ function applyConfig(cfg) {
     ? cfg.active_source
     : Object.keys(sources)[0] || null;
 
+  const w = cfg.writing || {};
+  el("style-words").value = w.target_words ?? 500;
+  el("style-tone").value = w.tone || "";
+  el("style-example").value = w.example || "";
+
   el("min-words").value = cfg.min_word_count ?? 150;
   el("banned").value = (cfg.banned_domains || []).join("\n");
   el("exclude-keywords").value = (cfg.exclude_keywords || []).join("\n");
@@ -129,6 +134,12 @@ async function saveConfig() {
     exclude_keywords: el("exclude-keywords").value.split("\n").map(s => s.trim()).filter(Boolean),
     require_attribution: el("require-attribution").checked,
     domains: readDomainsFromForm(),
+    writing: {
+      // clamped so a stray keystroke can't ask for a 90,000-word article
+      target_words: Math.min(Math.max(parseInt(el("style-words").value || "500", 10), 120), 1500),
+      tone: el("style-tone").value.trim(),
+      example: el("style-example").value.trim(),
+    },
   };
   // Send both editions, not just the visible one -- the form shows one at a
   // time, so a partial payload would blank the other's feeds and standard.

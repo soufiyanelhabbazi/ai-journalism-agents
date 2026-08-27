@@ -974,3 +974,16 @@ textarea:focus, input:focus {
 .settings-save .btn { white-space: nowrap; }
 
 .wire-controls-end { display: flex; align-items: center; gap: 10px; }
+
+/* Writing-style panel: the length control is narrow, the two free-text
+   fields want room, so they do not share an equal split. */
+.style-grid {
+  display: grid;
+  grid-template-columns: minmax(190px, 240px) 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) { .style-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.style-grid textarea { min-height: 130px; }
+.style-note { margin-top: 10px; margin-bottom: 0; }

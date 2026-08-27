@@ -283,6 +283,12 @@ class Domain(BaseModel):
     rubric: str  # this desk's own fit/quality standard, judged by the specialist agent
 
 
+class WritingStyle(BaseModel):
+    target_words: int
+    tone: str
+    example: str
+
+
 class SourceSet(BaseModel):
     label: str
     feeds: list[str]
@@ -299,6 +305,7 @@ class ConfigUpdate(BaseModel):
     domains: list[Domain] | None = None
     sources: dict[str, SourceSet] | None = None  # edition id -> feeds + that edition's standard
     active_source: str | None = None             # which edition the scouts pull from
+    writing: WritingStyle | None = None          # the staff writer's house voice
 
 
 @app.get("/api/config")
@@ -412,7 +419,12 @@ def generate_draft(article_id: int):
     if article["status"] != "accepted":
         raise HTTPException(status_code=400, detail="Only accepted articles can have a draft generated")
     try:
-        draft = supervisor.write_article(article, domain=article.get("domain"))
+        config = db.get_config()
+        draft = supervisor.write_article(
+            article,
+            domain=article.get("domain"),
+            style=config.get("writing") or db.DEFAULT_WRITING,
+        )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Draft generation failed: {e}")
     db.set_draft(article_id, draft.get("headline"), draft.get("article"), draft.get("provider"))

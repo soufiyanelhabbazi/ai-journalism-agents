@@ -160,6 +160,27 @@
       </section>
 
       <section class="panel settings-panel-wide">
+        <h2>أسلوب التحرير</h2>
+        <p class="panel-hint">يتحكم في الطريقة التي يكتب بها المحرر الآلي المقالات عند الضغط على «تحرير المقال». الطول مطلوب صراحة، لأن النموذج يكتب خبرا قصيرا إن لم يُطلب منه غير ذلك.</p>
+
+        <div class="style-grid">
+          <div>
+            <label class="field-label">طول المقال المستهدف <span class="hint">بالكلمات — يُسمح بهامش حوالي ٪20 حسب غنى المصدر</span></label>
+            <input id="style-words" type="number" min="120" max="1500" step="50" />
+            <p class="panel-hint style-note">إن كان المصدر قصيرا فقد يأتي المقال أقصر من المستهدف: المحرر ممنوع من اختلاق وقائع لملء المساحة.</p>
+          </div>
+          <div>
+            <label class="field-label">نبرة التحرير <span class="hint">تعليمات مباشرة للمحرر: اللغة، البنية، ما يُتجنّب</span></label>
+            <textarea id="style-tone" rows="6" dir="auto" placeholder="اكتب بلغة عربية فصيحة، بأسلوب الصحافة المغربية المهنية..."></textarea>
+          </div>
+          <div>
+            <label class="field-label">نموذج أسلوبي <span class="hint">فقرة مُختلَقة للاسترشاد بالنبرة والبنية فقط — لا تُنقل وقائعها إلى أي مقال</span></label>
+            <textarea id="style-example" rows="6" dir="auto" placeholder="أعلنت وزارة... وأوضح المصدر ذاته أن..."></textarea>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel settings-panel-wide">
         <h2>المكاتب المتخصصة</h2>
         <p class="panel-hint">كل مكتب وكيل مستقل: يوجَّه إليه المقال الذي يدخل في اختصاصه ويقيَّم وفق معاييره. ما يُقترح قبوله يحتاج مصادقة رئيس التحرير.</p>
         <div id="domains-list" class="domains-grid"></div>

@@ -118,6 +118,33 @@ ARABIC_RUBRIC = (
 )
 
 
+# The staff writer's house voice. Editable from the dashboard, because "make
+# the articles longer / less formal / more detailed" is an editorial decision
+# the owner should not need a developer for.
+#
+# target_words is the fix for drafts coming out short: the prompt carried no
+# length instruction at all, so the model defaulted to a brief wire item --
+# roughly 300-400 words regardless of how much source material it was given.
+DEFAULT_WRITING = {
+    "target_words": 500,
+    "tone": (
+        "اكتب بلغة عربية فصيحة سليمة، بأسلوب الصحافة المغربية المهنية "
+        "(هسبريس، وكالة المغرب العربي للأنباء، الأحداث المغربية). "
+        "ابدأ بالخبر الأهم في الفقرة الأولى، ثم السياق، ثم التفاصيل المساندة "
+        "والتصريحات. استعمل جملا واضحة ومتوسطة الطول، وابتعد عن المبالغة "
+        "والإنشاء. حافظ على الحياد التام في العرض، ونسب كل خبر إلى مصدره."
+    ),
+    # A fabricated example, not a real event: it anchors register and
+    # structure without leaking any facts into the drafts.
+    "example": (
+        "أعلنت وزارة التربية الوطنية، في بلاغ رسمي، عن تأجيل الموسم الدراسي بأسبوع "
+        "كامل بسبب الأحوال الجوية. وأوضح المصدر ذاته أن القرار جاء بعد تشاور مع "
+        "النقابات التعليمية، مشيرا إلى أن الإدارات المحلية ستتولى تنظيم الحصص "
+        "الاستدراكية لاحقا."
+    ),
+}
+
+
 DEFAULT_CONFIG = {
     # Which source set the scouts pull from. The two editions are separate
     # products with separate audiences -- a Moroccan wire and a pan-Arab one
@@ -215,6 +242,7 @@ DEFAULT_CONFIG = {
     "require_attribution": True,  # reject articles with no quote/'said'/'according to' signal
     # Legacy single rubric, used only when no source set is active.
     "rubric": MOROCCAN_RUBRIC,
+    "writing": DEFAULT_WRITING,
     # A Moroccan newsroom's actual desk structure. The old three-desk set
     # (Politics / Sports / Art & Culture) had nowhere to route the majority
     # of a Moroccan wire -- accidents, drug busts, weather, regional news --
