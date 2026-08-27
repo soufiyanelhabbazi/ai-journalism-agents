@@ -580,7 +580,12 @@ function showView(name) {
   document.querySelectorAll(".viewtab").forEach(t => {
     t.classList.toggle("active", t.dataset.view === name);
   });
-  if (name === "dashboard") loadStats();
+  if (name === "dashboard") {
+    loadStats();
+    // Free version -- no provider round-trips, so the panel is populated the
+    // moment the dashboard opens rather than showing "press refresh".
+    runHealthCheck({ probe: false });
+  }
   if (name === "wire") loadFeed();
 }
 
@@ -662,7 +667,7 @@ function renderStats(st) {
     statTile("نسبة القبول", t.accept_rate + "%");
 
   el("chart-desks").innerHTML = chartLegend() + barRows(st.by_desk, { split: true });
-  el("chart-sources").innerHTML = chartLegend() + barRows(st.by_source, { split: true });
+  el("chart-sources").innerHTML = chartLegend() + barRows(st.by_source.slice(0, 8), { split: true });
   el("chart-days").innerHTML = chartLegend() + barRows(
     (st.by_day || []).map(d => ({ name: d.day, total: d.total, accepted: d.accepted })).reverse(),
     { split: true });
@@ -698,20 +703,23 @@ function healthCard(title, ok, detail) {
   </div>`;
 }
 
-async function runHealthCheck() {
+async function runHealthCheck({ probe = true } = {}) {
   const btn = el("health-btn");
   const box = el("dash-health");
-  btn.disabled = true;
-  btn.textContent = "جارٍ الفحص...";
+  if (probe) { btn.disabled = true; btn.textContent = "جارٍ الفحص..."; }
   try {
-    const res = await fetch("/api/health");
+    const res = await fetch("/api/health" + (probe ? "" : "?probe=false"));
     const h = await res.json();
     const cards = [];
 
-    cards.push(healthCard("Gemini", !!h.gemini?.ok,
-      h.gemini?.ok ? h.gemini.model : (h.gemini?.error || "").slice(0, 120)));
-    cards.push(healthCard("Groq (احتياطي)", !!h.groq?.ok,
-      h.groq?.ok ? h.groq.model : (h.groq?.error || "").slice(0, 120)));
+    if (h.gemini) {
+      cards.push(healthCard("Gemini", !!h.gemini.ok,
+        h.gemini.ok ? h.gemini.model : (h.gemini.error || "").slice(0, 120)));
+    }
+    if (h.groq) {
+      cards.push(healthCard("Groq (احتياطي)", !!h.groq.ok,
+        h.groq.ok ? h.groq.model : (h.groq.error || "").slice(0, 120)));
+    }
     cards.push(healthCard("قاعدة البيانات", !!h.database?.ok,
       h.database?.ok ? `${h.database.articles} مقال مخزَّن` : (h.database?.error || "").slice(0, 120)));
     cards.push(healthCard("التشغيل المجدول", h.scheduling?.enabled ? true : null,
@@ -738,8 +746,7 @@ async function runHealthCheck() {
   } catch (e) {
     box.innerHTML = `<div class="health-loading">فشل فحص النظام: ${escapeHtml(e.message)}</div>`;
   } finally {
-    btn.disabled = false;
-    btn.textContent = "فحص النظام";
+    if (probe) { btn.disabled = false; btn.textContent = "فحص النظام"; }
   }
 }
 
@@ -755,7 +762,7 @@ document.querySelectorAll(".tab").forEach(tab => {
 el("save-btn").addEventListener("click", saveConfig);
 el("run-btn").addEventListener("click", runPipeline);
 el("clear-btn").addEventListener("click", clearArticles);
-el("health-btn").addEventListener("click", runHealthCheck);
+el("health-btn").addEventListener("click", () => runHealthCheck({ probe: true }));
 el("auto-toggle").addEventListener("change", () => applyAutoRun({ runNow: el("auto-toggle").checked }));
 el("auto-interval").addEventListener("change", () => applyAutoRun({ runNow: false }));
 el("add-domain-btn").addEventListener("click", () => {

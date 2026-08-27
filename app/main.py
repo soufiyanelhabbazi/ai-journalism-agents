@@ -217,8 +217,15 @@ def _ping_provider(get_client_fn, model: str) -> dict:
 
 
 @app.get("/api/health")
-def health():
-    """Live check of every external dependency. Secrets are never echoed."""
+def health(probe: bool = True):
+    """
+    Live check of every external dependency. Secrets are never echoed.
+
+    probe=false skips the provider round-trips and reports only what can be
+    read for free -- secrets, database, scheduling. The dashboard opens with
+    that version so its health panel is never blank, without spending two
+    requests of a 15-per-minute quota every time someone switches tabs.
+    """
     report = {
         "env": {n: _secret_report(n) for n in (
             "GEMINI_API_KEY", "GROQ_API_KEY",
@@ -243,6 +250,9 @@ def health():
         report["database"] = {"ok": True, "articles": sum(counts.values()), "by_status": counts}
     except Exception as e:
         report["database"] = {"ok": False, "error": f"{type(e).__name__}: {e}"[:400]}
+
+    if not probe:
+        return report
 
     report["gemini"] = _ping_provider(supervisor.get_client, supervisor.LLM_MODEL)
     report["groq"] = _ping_provider(supervisor.get_groq_client, supervisor.GROQ_MODEL)

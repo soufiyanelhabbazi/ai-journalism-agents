@@ -31,6 +31,12 @@
 
 * { box-sizing: border-box; }
 
+/* Arabic is cursive -- letters join. Any positive tracking breaks those joins
+   and the word visually falls apart, and uppercase means nothing in the
+   script. Declared once, globally, because both kept creeping back in from
+   the interface's English origins. */
+* { letter-spacing: normal; text-transform: none; }
+
 body {
   margin: 0;
   background:
@@ -74,7 +80,6 @@ body {
   margin: 0;
   font-size: 19px;
   font-weight: 700;
-  letter-spacing: -0.01em;
   color: var(--text);
 }
 .brand-accent { color: var(--accent); font-weight: 600; }
@@ -102,7 +107,6 @@ body {
   font-family: var(--font-sans);
   font-size: 13.5px;
   font-weight: 600;
-  letter-spacing: 0.01em;
   border-radius: var(--radius-sm);
   padding: 10px 18px;
   cursor: pointer;
@@ -147,8 +151,6 @@ body {
 .panel h2 {
   font-family: var(--font-mono);
   font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
   color: var(--accent);
   margin: 0 0 16px;
   padding-bottom: 12px;
@@ -158,13 +160,11 @@ body {
   display: block;
   font-family: var(--font-mono);
   font-size: 10.5px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
   color: var(--text-muted);
   margin: 16px 0 7px;
 }
 .field-label:first-of-type { margin-top: 0; }
-.hint { text-transform: none; letter-spacing: 0; opacity: 0.7; }
+.hint { opacity: 0.7; }
 
 .panel-hint {
   font-size: 12px;
@@ -179,14 +179,20 @@ body {
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
   padding: 10px;
-  margin-bottom: 10px;
-}
-.domain-row-top {
+  min-width: 0;          /* a grid item defaults to min-content width */
   display: flex;
+  flex-direction: column;
+}
+/* grid, not flex: the name input had no min-width, so in a narrow grid cell it
+   refused to shrink and pushed the remove button clean outside the card. */
+.domain-row-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
 }
+.domain-row-top .domain-name { min-width: 0; }
 .domain-name {
   flex: 1;
   font-family: var(--font-sans);
@@ -217,13 +223,14 @@ body {
 .domain-row .domain-rubric {
   margin: 0;
   font-size: 12px;
+  flex: 1;
+  min-height: 72px;
+  resize: vertical;
 }
 
 .domain-badge {
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--accent-ink);
   background: var(--accent);
   border-radius: 999px;
@@ -236,7 +243,6 @@ body {
   align-items: center;
   gap: 9px;
   cursor: pointer;
-  text-transform: none;
   font-size: 12.5px;
   color: var(--text);
 }
@@ -322,7 +328,6 @@ textarea:focus, input:focus {
 .tab {
   font-family: var(--font-mono);
   font-size: 12px;
-  letter-spacing: 0.03em;
   background: none;
   border: none;
   border-radius: var(--radius-sm);
@@ -368,8 +373,6 @@ textarea:focus, input:focus {
 .card-source {
   font-family: var(--font-mono);
   font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
   color: var(--accent);
 }
 .card-time {
@@ -449,8 +452,6 @@ textarea:focus, input:focus {
   font-size: 10px;
   color: var(--text-faint);
   margin-inline-start: 6px;
-  text-transform: none;
-  letter-spacing: 0;
 }
 
 .trail-step > p {
@@ -476,8 +477,6 @@ textarea:focus, input:focus {
   display: inline-block;
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--accept);
   background: var(--accept-bg);
   border-radius: 999px;
@@ -563,10 +562,8 @@ textarea:focus, input:focus {
   font-family: var(--font-mono);
   font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.1em;
   padding: 5px 12px;
   border-radius: 999px;
-  text-transform: uppercase;
 }
 .stamp.accepted { color: var(--accept); background: var(--accept-bg); }
 .stamp.rejected { color: var(--reject); background: var(--reject-bg); }
@@ -630,7 +627,6 @@ textarea:focus, input:focus {
   font-family: var(--font-mono);
   font-size: 0.7rem;
   color: var(--text-faint);
-  letter-spacing: 0.02em;
   margin: -2px 0 8px;
 }
 
@@ -743,10 +739,10 @@ textarea:focus, input:focus {
 /* ===================== Dashboard ===================== */
 .dash-head {
   display: grid;
-  grid-template-columns: minmax(220px, 300px) 1fr;
-  gap: 20px;
+  grid-template-columns: minmax(240px, 320px) 1fr;
+  gap: 16px;
   align-items: stretch;
-  margin-bottom: 22px;
+  margin-bottom: 16px;
 }
 @media (max-width: 900px) { .dash-head { grid-template-columns: 1fr; } }
 
@@ -802,17 +798,30 @@ textarea:focus, input:focus {
 .kpi-pend { border-inline-start-color: var(--pending); }
 .kpi-pend .kpi-value { color: var(--pending); }
 
+/* An explicit two-column grid, not auto-fit. auto-fit packed three panels of
+   very different heights into a row and left craters of dead space under the
+   short ones; pairing them deliberately and stretching to equal height is
+   what actually makes a dashboard read as a grid. */
 .dash-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  gap: 18px;
-  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
 }
+@media (max-width: 980px) { .dash-grid { grid-template-columns: minmax(0, 1fr); } }
 
+.dash-panel { display: flex; flex-direction: column; }
 .dash-panel-wide { grid-column: 1 / -1; }
 
+/* Paired panels rarely hold the same number of rows, so the chart takes the
+   slack rather than the panel ending early and breaking the row's baseline. */
+.dash-panel .chart:last-of-type { flex: 1; }
+
 /* ===================== Charts ===================== */
-.chart { display: flex; flex-direction: column; gap: 9px; margin-top: 6px; }
+.chart { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+/* Rows are a fixed height, so a chart with three of them and one with eight
+   still share a predictable rhythm down the column. */
+.chart .bar-row { min-height: 20px; }
 .chart-sub { margin-top: 18px; }
 .chart-sub-title { font-size: 0.76rem; color: var(--text-muted); margin-bottom: 8px; }
 .chart-empty { font-size: 0.82rem; color: var(--text-faint); padding: 10px 0; }
@@ -911,10 +920,14 @@ textarea:focus, input:focus {
 /* ===================== Settings view ===================== */
 .settings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 18px;
-  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
 }
+@media (max-width: 980px) { .settings-grid { grid-template-columns: minmax(0, 1fr); } }
+.settings-grid > .panel { display: flex; flex-direction: column; }
+/* the long free-text fields absorb the height difference between the two panels */
+.settings-grid > .panel > textarea:last-of-type { flex: 1; }
 
 .settings-panel-wide { grid-column: 1 / -1; }
 
@@ -930,14 +943,16 @@ textarea:focus, input:focus {
    most of the old sidebar's scroll. */
 .domains-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 12px;
   margin-bottom: 14px;
+  align-items: stretch;
 }
 
 .settings-save {
   position: sticky;
-  bottom: 0;
+  bottom: 12px;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: flex-end;
