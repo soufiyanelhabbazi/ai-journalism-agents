@@ -101,9 +101,13 @@ LOGIN_PAGE = """<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<title>SAFIRCOM AI Journalist -- Login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="/static/logo.png">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600&display=swap" rel="stylesheet">
+<title>SAFIRCOM — الصحفي الآلي</title>
 <style>
-  body {{ font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0;
+  body {{ font-family: "IBM Plex Sans Arabic", system-ui, sans-serif; background: #0f172a; color: #e2e8f0;
          display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }}
   form {{ background: #1e293b; padding: 2.5rem; border-radius: 12px; width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,.3); }}
   h1 {{ font-size: 1.1rem; margin: 0 0 1.5rem; text-align: center; }}
@@ -118,13 +122,13 @@ LOGIN_PAGE = """<!doctype html>
 </head>
 <body>
 <form method="post" action="/login">
-  <h1>SAFIRCOM AI Journalist -- Admin Login</h1>
+  <h1>SAFIRCOM — الصحفي الآلي<br><small style="font-weight:400;color:#94a3b8;font-size:.85rem">دخول المشرف</small></h1>
   {error_html}
-  <label for="username">Username</label>
+  <label for="username">اسم المستخدم</label>
   <input type="text" id="username" name="username" autocomplete="username" required autofocus>
-  <label for="password">Password</label>
+  <label for="password">كلمة المرور</label>
   <input type="password" id="password" name="password" autocomplete="current-password" required>
-  <button type="submit">Log in</button>
+  <button type="submit">دخول</button>
 </form>
 </body>
 </html>"""
@@ -132,7 +136,7 @@ LOGIN_PAGE = """<!doctype html>
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(error: str | None = None):
-    error_html = '<div class="error">Invalid username or password.</div>' if error else ""
+    error_html = '<div class="error">اسم المستخدم أو كلمة المرور غير صحيحة.</div>' if error else ""
     return LOGIN_PAGE.format(error_html=error_html)
 
 

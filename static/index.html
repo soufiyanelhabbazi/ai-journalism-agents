@@ -1,13 +1,16 @@
 <!DOCTYPE html>
-<html lang="en">
+<!-- lang/dir on the root element: every logical CSS property in style.css
+     (padding-inline-start, inset-inline-end, ...) mirrors off this, so the
+     whole layout flips without a separate RTL stylesheet. -->
+<html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SAFIRCOM AI Journalist</title>
+<title>SAFIRCOM — الصحفي الآلي</title>
 <link rel="icon" href="/static/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -17,27 +20,27 @@
     <div class="brand">
       <img src="/static/logo.png" alt="SAFIRCOM" class="brand-logo">
       <div class="brand-text">
-        <h1>SAFIRCOM <span class="brand-accent">AI Journalist</span></h1>
-        <span class="byline">Owned by Btissam Machkour</span>
+        <h1>SAFIRCOM <span class="brand-accent">الصحفي الآلي</span></h1>
+        <span class="byline">ملكية: بتيسام مشكور</span>
       </div>
     </div>
     <div class="topbar-actions">
       <div class="edition-date" id="edition-date"></div>
-      <button id="clear-btn" class="btn btn-ghost">Clear Articles</button>
+      <button id="clear-btn" class="btn btn-ghost">حذف المقالات</button>
       <div class="auto-run">
-        <label class="auto-switch" title="Keep fetching on a schedule while this page is open">
+        <label class="auto-switch" title="مواصلة جلب الأخبار تلقائيا ما دامت هذه الصفحة مفتوحة">
           <input type="checkbox" id="auto-toggle">
-          <span>Auto</span>
+          <span>تلقائي</span>
         </label>
         <select id="auto-interval" class="auto-interval" disabled>
-          <option value="15">every 15 min</option>
-          <option value="30" selected>every 30 min</option>
-          <option value="60">every hour</option>
-          <option value="120">every 2 hours</option>
+          <option value="15">كل 15 دقيقة</option>
+          <option value="30" selected>كل 30 دقيقة</option>
+          <option value="60">كل ساعة</option>
+          <option value="120">كل ساعتين</option>
         </select>
         <span id="auto-status" class="auto-status"></span>
       </div>
-      <button id="run-btn" class="btn btn-primary">Run Scouts</button>
+      <button id="run-btn" class="btn btn-primary">جلب الأخبار</button>
     </div>
   </div>
 </header>
@@ -46,65 +49,65 @@
 
   <aside class="sidebar">
     <section class="panel">
-      <h2>Domain Desks</h2>
-      <p class="panel-hint">Each desk is its own specialist agent: it claims articles that fit its beat and judges them against its own standard. Proposed accepts still need editor sign-off below.</p>
+      <h2>المكاتب المتخصصة</h2>
+      <p class="panel-hint">كل مكتب وكيل مستقل: يوجَّه إليه المقال الذي يدخل في اختصاصه ويقيَّم وفق معاييره. ما يُقترح قبوله يحتاج مصادقة رئيس التحرير أدناه.</p>
       <div id="domains-list"></div>
-      <button id="add-domain-btn" class="btn btn-ghost btn-block" type="button">+ Add Domain</button>
+      <button id="add-domain-btn" class="btn btn-ghost btn-block" type="button">+ إضافة مكتب</button>
     </section>
 
     <section class="panel">
-      <h2>Edition</h2>
-      <p class="panel-hint">Which press the scouts read. Each edition keeps its own sources and its own editorial standard, so switching changes both.</p>
+      <h2>النسخة</h2>
+      <p class="panel-hint">الصحافة التي تُجلب منها الأخبار. لكل نسخة مصادرها ومعاييرها التحريرية الخاصة، لذا تغييرها يغيّر الاثنين معا.</p>
       <div class="edition-picker" id="edition-picker"></div>
     </section>
 
     <section class="panel">
-      <h2>Editor-in-Chief</h2>
-      <label class="field-label">Standard for <span id="rubric-edition-name" class="edition-name">this edition</span> <span class="hint">applied to every desk's proposed accepts — the final sign-off</span></label>
-      <textarea id="rubric" rows="6" placeholder="Describe what makes an article acceptable, regardless of desk..."></textarea>
+      <h2>رئيس التحرير</h2>
+      <label class="field-label">معايير النشر لنسخة <span id="rubric-edition-name" class="edition-name">هذه النسخة</span> <span class="hint">تُطبَّق على كل مقال يقترحه أحد المكاتب — القرار النهائي قبل النشر</span></label>
+      <textarea id="rubric" rows="6" placeholder="صف ما الذي يجعل المقال صالحا للنشر، أيا كان المكتب..."></textarea>
 
-      <label class="field-label">Minimum word count</label>
+      <label class="field-label">الحد الأدنى لعدد الكلمات</label>
       <input id="min-words" type="number" min="0" />
 
       <label class="field-label checkbox-label">
         <input id="require-attribution" type="checkbox" />
-        Require attribution (quotes / "said" / "according to")
+        اشتراط الإسناد (اقتباس / «قال» / «حسب»)
       </label>
 
-      <label class="field-label">Exclude keywords <span class="hint">one per line, any match rejects</span></label>
-      <textarea id="exclude-keywords" rows="2" placeholder="e.g. horoscope&#10;sponsored"></textarea>
+      <label class="field-label">كلمات مستبعَدة <span class="hint">كلمة في كل سطر، أي تطابق يؤدي إلى الرفض</span></label>
+      <textarea id="exclude-keywords" rows="2" placeholder="مثال: حظك اليوم&#10;إعلان ممول"></textarea>
 
-      <label class="field-label">Banned domains <span class="hint">one per line</span></label>
+      <label class="field-label">مواقع محظورة <span class="hint">موقع في كل سطر</span></label>
       <textarea id="banned" rows="2" placeholder="example.com"></textarea>
 
-      <label class="field-label">Sources for <span id="feeds-edition-name" class="edition-name">this edition</span> <span class="hint">one RSS feed per line</span></label>
-      <textarea id="feeds" rows="5" placeholder="https://example.com/feed.xml"></textarea>
+      <label class="field-label">مصادر <span id="feeds-edition-name" class="edition-name">هذه النسخة</span> <span class="hint">رابط RSS واحد في كل سطر</span></label>
+      <textarea id="feeds" rows="5" placeholder="https://example.com/feed"></textarea>
 
-      <button id="save-btn" class="btn btn-primary btn-block">Save Standards</button>
+      <button id="save-btn" class="btn btn-primary btn-block">حفظ المعايير</button>
       <div id="save-status" class="save-status"></div>
     </section>
 
     <section class="panel stats-panel">
-      <h2>Last Run</h2>
-      <div class="stat-row"><span>Candidates seen</span><span id="stat-seen">—</span></div>
-      <div class="stat-row"><span>New articles</span><span id="stat-new">—</span></div>
-      <div class="stat-row accepted"><span>Accepted</span><span id="stat-accepted">—</span></div>
-      <div class="stat-row rejected"><span>Rejected</span><span id="stat-rejected">—</span></div>
-      <div class="stat-row"><span>Awaiting verdict</span><span id="stat-pending">—</span></div>
-      <button id="health-btn" class="btn btn-ghost btn-block" type="button">Run system check</button>
+      <h2>آخر تشغيل</h2>
+      <div class="stat-row"><span>مقالات مفحوصة</span><span id="stat-seen">—</span></div>
+      <div class="stat-row"><span>مقالات جديدة</span><span id="stat-new">—</span></div>
+      <div class="stat-row accepted"><span>مقبولة</span><span id="stat-accepted">—</span></div>
+      <div class="stat-row rejected"><span>مرفوضة</span><span id="stat-rejected">—</span></div>
+      <div class="stat-row"><span>في انتظار القرار</span><span id="stat-pending">—</span></div>
+      <button id="health-btn" class="btn btn-ghost btn-block" type="button">فحص النظام</button>
     </section>
   </aside>
 
   <main class="wire">
     <div class="wire-controls">
       <div class="filter-tabs">
-        <button class="tab active" data-status="">All</button>
-        <button class="tab" data-status="accepted">Accepted</button>
-        <button class="tab" data-status="rejected">Rejected</button>
-        <button class="tab" data-status="pending">Awaiting verdict</button>
+        <button class="tab active" data-status="">الكل</button>
+        <button class="tab" data-status="accepted">مقبولة</button>
+        <button class="tab" data-status="rejected">مرفوضة</button>
+        <button class="tab" data-status="pending">في انتظار القرار</button>
       </div>
       <select id="domain-filter" class="domain-filter">
-        <option value="">All desks</option>
+        <option value="">كل المكاتب</option>
       </select>
     </div>
     <div id="alerts" class="alerts" hidden></div>

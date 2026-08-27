@@ -5,19 +5,19 @@ let currentDomainFilter = "";
 
 function setEditionDate() {
   const now = new Date();
-  el("edition-date").textContent = now.toLocaleDateString("en-US", {
+  el("edition-date").textContent = now.toLocaleDateString("ar-MA", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
-  }).toUpperCase();
+  });
 }
 
 function domainRowTemplate(name = "", rubric = "") {
   return `
     <div class="domain-row">
       <div class="domain-row-top">
-        <input type="text" class="domain-name" placeholder="Desk name (e.g. Sports)" value="${escapeHtml(name)}">
+        <input type="text" class="domain-name" placeholder="اسم المكتب (مثال: رياضة)" value="${escapeHtml(name)}">
         <button type="button" class="domain-remove" onclick="this.closest('.domain-row').remove()">✕</button>
       </div>
-      <textarea class="domain-rubric" rows="2" placeholder="What this desk looks for...">${escapeHtml(rubric)}</textarea>
+      <textarea class="domain-rubric" rows="2" placeholder="ما الذي يغطيه هذا المكتب...">${escapeHtml(rubric)}</textarea>
     </div>
   `;
 }
@@ -38,7 +38,7 @@ function readDomainsFromForm() {
 function populateDomainFilter(domains) {
   const select = el("domain-filter");
   const current = select.value;
-  select.innerHTML = `<option value="">All desks</option>` +
+  select.innerHTML = `<option value="">كل المكاتب</option>` +
     (domains || []).map(d => `<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)}</option>`).join("");
   select.value = [...select.options].some(o => o.value === current) ? current : "";
 }
@@ -72,10 +72,10 @@ function renderEditionPicker() {
     <label class="edition-option ${id === activeSource ? "active" : ""}">
       <input type="radio" name="edition" value="${escapeHtml(id)}" ${id === activeSource ? "checked" : ""}>
       <span>${escapeHtml(sources[id].label || id)}</span>
-      <span class="edition-count">${(sources[id].feeds || []).length} sources</span>
+      <span class="edition-count">${(sources[id].feeds || []).length} مصدر</span>
     </label>
   `).join("");
-  const name = activeSet().label || activeSource || "this edition";
+  const name = activeSet().label || activeSource || "هذه النسخة";
   el("rubric-edition-name").textContent = name;
   el("feeds-edition-name").textContent = name;
 
@@ -146,13 +146,13 @@ async function saveConfig() {
     payload.feeds = el("feeds").value.split("\n").map(s => s.trim()).filter(Boolean);
   }
   const status = el("save-status");
-  status.textContent = "Saving...";
+  status.textContent = "جارٍ الحفظ...";
   const res = await fetch("/api/config", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  status.textContent = res.ok ? "Saved." : "Failed to save.";
+  status.textContent = res.ok ? "تم الحفظ." : "فشل الحفظ.";
   status.style.color = res.ok ? "var(--accept)" : "var(--reject)";
   setTimeout(() => (status.textContent = ""), 2500);
   if (res.ok) {
@@ -176,32 +176,35 @@ function timeAgo(iso) {
   const d = fetchedDate(iso);
   if (!d) return "";
   const diffMin = Math.round((Date.now() - d.getTime()) / 60000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 1) return "الآن";
+  if (diffMin < 60) return `منذ ${diffMin} دقيقة`;
   const h = Math.round(diffMin / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.round(h / 24)}d ago`;
+  if (h < 24) return `منذ ${h} ساعة`;
+  return `منذ ${Math.round(h / 24)} يوم`;
 }
 
-// "Fetched 20 Aug 2026, 14:32" -- an exact wall-clock time in Morocco, since
-// "3h ago" alone doesn't tell you which run an article came in on.
+// "جُلب في 20 غشت 2026، 14:32" -- an exact wall-clock time in Morocco, since
+// "3h ago" alone doesn't tell you which run an article came in on. ar-MA
+// gives Moroccan month names (غشت, not أغسطس) and keeps Latin digits.
 function fetchedStamp(iso) {
   const d = fetchedDate(iso);
   if (!d) return "";
-  return "Fetched " + d.toLocaleString("en-GB", {
+  return "جُلب في " + d.toLocaleString("ar-MA", {
     timeZone: "Africa/Casablanca",
     day: "numeric", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit", hour12: false,
   });
 }
 
+const STATUS_AR_PLAIN = { accepted: "مقبول", rejected: "مرفوض", pending: "قيد المراجعة" };
+
 function stageLabel(stage) {
   return {
-    rule: "Rule check",
-    specialist: "Desk review",
-    editor: "Desk + Editor review",
-    manual: "Manual override",
-    llm: "Editorial review",
+    rule: "فحص القواعد",
+    specialist: "مراجعة المكتب",
+    editor: "المكتب + رئيس التحرير",
+    manual: "تدخل يدوي",
+    llm: "مراجعة تحريرية",
   }[stage] || "—";
 }
 
@@ -220,44 +223,45 @@ function formatParagraphs(text) {
 }
 
 function providerTag(provider) {
-  return provider ? `<span class="provider-tag">via ${escapeHtml(provider)}</span>` : "";
+  return provider ? `<span class="provider-tag">عبر ${escapeHtml(provider)}</span>` : "";
 }
 
 function draftedArticleBlock(a) {
   return `
     <div class="drafted-article">
-      <span class="drafted-tag">Ready to publish</span>${providerTag(a.draft_provider)}
+      <span class="drafted-tag">جاهز للنشر</span>${providerTag(a.draft_provider)}
       <h4 class="draft-headline" dir="auto">${escapeHtml(a.draft_headline || "")}</h4>
       <div class="draft-body">${formatParagraphs(a.draft_article)}</div>
-      <button type="button" class="copy-draft-btn" onclick="copyDraft(this)">Copy Article</button>
+      <button type="button" class="copy-draft-btn" onclick="copyDraft(this)">نسخ المقال</button>
     </div>
   `;
 }
 
 function cardTemplate(a) {
   const stampClass = a.status === "accepted" ? "accepted" : a.status === "rejected" ? "rejected" : "pending";
-  const stampLabel = a.status === "pending" ? "reviewing…" : a.status;
+  const STATUS_AR = { accepted: "مقبول", rejected: "مرفوض", pending: "قيد المراجعة…" };
+  const stampLabel = STATUS_AR[a.status] || a.status;
   const domainBadge = a.domain ? `<span class="domain-badge">${escapeHtml(a.domain)}</span>` : "";
 
   // Writing is the expensive step, so it's opt-in per article rather than automatic --
   // only offer it on accepted articles that don't already have a draft.
   const generateBtn = (a.status === "accepted" && !a.draft_article)
-    ? `<button type="button" class="generate-draft-btn" onclick="generateDraft(${a.id}, this)">Generate Article</button>`
+    ? `<button type="button" class="generate-draft-btn" onclick="generateDraft(${a.id}, this)">تحرير المقال</button>`
     : "";
 
   let reasonBlock = "";
   if (a.draft_article && a.stage === "editor") {
     // Final accept with a written draft -- show the actual article in place
     // of the desk's short proposal text, then the editor's sign-off below it.
-    const verb = a.status === "accepted" ? "confirmed" : "overruled";
+    const verb = a.status === "accepted" ? "صادق على القرار" : "عارض المكتب";
     reasonBlock = `
       <div class="review-trail">
         <div class="trail-step proposal drafted">
-          <span class="trail-role">${escapeHtml(a.domain || "Desk")}${providerTag(a.proposal_provider)}</span>
+          <span class="trail-role">${escapeHtml(a.domain || "المكتب")}${providerTag(a.proposal_provider)}</span>
           ${draftedArticleBlock(a)}
         </div>
         <div class="trail-step final ${stampClass}">
-          <span class="trail-role">Editor-in-chief · ${verb}${providerTag(a.provider)}</span>
+          <span class="trail-role">رئيس التحرير · ${verb}${providerTag(a.provider)}</span>
           <p dir="auto">${escapeHtml(a.reason)}</p>
         </div>
       </div>
@@ -268,16 +272,16 @@ function cardTemplate(a) {
   } else if (a.stage === "editor" && a.proposal_reason) {
     // Editor-in-chief reviewed a desk's proposal -- show both steps as a trail,
     // since the final reason alone hides whether the editor agreed or overruled.
-    const verb = a.status === "accepted" ? "confirmed" : "overruled";
+    const verb = a.status === "accepted" ? "صادق على القرار" : "عارض المكتب";
     reasonBlock = `
       <div class="review-trail">
         <div class="trail-step proposal">
-          <span class="trail-role">${escapeHtml(a.domain || "Desk")}${providerTag(a.proposal_provider)}</span>
+          <span class="trail-role">${escapeHtml(a.domain || "المكتب")}${providerTag(a.proposal_provider)}</span>
           <p dir="auto">${escapeHtml(a.proposal_reason)}</p>
           ${generateBtn}
         </div>
         <div class="trail-step final ${stampClass}">
-          <span class="trail-role">Editor-in-chief · ${verb}${providerTag(a.provider)}</span>
+          <span class="trail-role">رئيس التحرير · ${verb}${providerTag(a.provider)}</span>
           <p dir="auto">${escapeHtml(a.reason)}</p>
         </div>
       </div>
@@ -290,18 +294,18 @@ function cardTemplate(a) {
     <article class="card ${stampClass}">
       <span class="stamp ${stampClass}">${stampLabel}</span>
       <div class="card-top">
-        <span class="card-source">${escapeHtml(a.source || "Unknown source")}</span>
+        <span class="card-source">${escapeHtml(a.source || "مصدر غير معروف")}</span>
         ${domainBadge}
         <span class="card-time" title="${escapeHtml(fetchedStamp(a.created_at))}">${timeAgo(a.created_at)}</span>
       </div>
       <div class="card-fetched">${escapeHtml(fetchedStamp(a.created_at))}</div>
-      <h3 class="card-title" dir="auto"><a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.title || "Untitled")}</a></h3>
+      <h3 class="card-title" dir="auto"><a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.title || "بدون عنوان")}</a></h3>
       ${reasonBlock}
       <div class="card-footer">
-        <span class="card-meta">${stageLabel(a.stage)} · ${a.confidence != null ? Math.round(a.confidence * 100) + "% confidence" : "—"}</span>
+        <span class="card-meta">${stageLabel(a.stage)} · ${a.confidence != null ? "نسبة الثقة " + Math.round(a.confidence * 100) + "%" : "—"}</span>
         <span class="override-actions">
-          <button onclick="override(${a.id}, 'accepted')">Force Accept</button>
-          <button onclick="override(${a.id}, 'rejected')">Force Reject</button>
+          <button onclick="override(${a.id}, 'accepted')">قبول يدوي</button>
+          <button onclick="override(${a.id}, 'rejected')">رفض يدوي</button>
         </span>
       </div>
     </article>
@@ -321,10 +325,10 @@ function copyDraft(btn) {
   const text = `${headline}\n\n${body}`;
   const original = btn.textContent;
   navigator.clipboard.writeText(text).then(() => {
-    btn.textContent = "Copied!";
+    btn.textContent = "تم النسخ!";
     setTimeout(() => { btn.textContent = original; }, 1800);
   }).catch(() => {
-    btn.textContent = "Copy failed — select manually";
+    btn.textContent = "تعذّر النسخ — حدّد النص يدويا";
     setTimeout(() => { btn.textContent = original; }, 2500);
   });
 }
@@ -332,19 +336,19 @@ function copyDraft(btn) {
 async function generateDraft(id, btn) {
   const original = btn.textContent;
   btn.disabled = true;
-  btn.textContent = "Generating...";
+  btn.textContent = "جارٍ التحرير...";
   try {
     const res = await fetch(`/api/articles/${id}/draft`, { method: "POST" });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert("Draft generation failed: " + (err.detail || "unknown error"));
+      alert("فشل تحرير المقال: " + (err.detail || "خطأ غير معروف"));
       btn.disabled = false;
       btn.textContent = original;
       return;
     }
     loadFeed();
   } catch (e) {
-    alert("Draft generation failed: " + e.message);
+    alert("فشل تحرير المقال: " + e.message);
     btn.disabled = false;
     btn.textContent = original;
   }
@@ -359,7 +363,7 @@ async function loadFeed() {
   const articles = await res.json();
   const feed = el("feed");
   if (articles.length === 0) {
-    feed.innerHTML = `<div class="empty-state">No articles yet. Configure your standards and hit "Run Scouts".</div>`;
+    feed.innerHTML = `<div class="empty-state">لا توجد مقالات بعد. اضبط معاييرك ثم اضغط «جلب الأخبار».</div>`;
     return;
   }
   feed.innerHTML = articles.map(cardTemplate).join("");
@@ -405,24 +409,24 @@ function alertsFromRun(result) {
     }
     alerts.push({
       level: "error",
-      title: `${result.review_errors.length} article(s) got no verdict — the review step failed`,
+      title: `${result.review_errors.length} مقال بقي دون قرار — فشلت مرحلة المراجعة`,
       lines: [...byError.entries()].map(([err, n]) => `${n}× ${err}`),
     });
   }
   if (result.scout_errors?.length) {
     alerts.push({
       level: "warn",
-      title: `${result.scout_errors.length} source(s) could not be fetched`,
+      title: `تعذّر جلب ${result.scout_errors.length} مصدر`,
       lines: result.scout_errors.map(e => `${e.feed} — ${e.error}`),
     });
   }
   if (result.deferred) {
     alerts.push({
       level: "warn",
-      title: `${result.deferred} candidate(s) deferred to the next run`,
+      title: `${result.deferred} مقال مؤجَّل إلى التشغيل القادم`,
       lines: [result.deadline_reached
-        ? "The run hit its time limit. Click Run Scouts again to keep going."
-        : "Per-run candidate cap reached. Click Run Scouts again to keep going."],
+        ? "بلغ التشغيل حده الزمني. اضغط «جلب الأخبار» مرة أخرى للمتابعة، أو فعّل الوضع التلقائي."
+        : "بلغ التشغيل الحد الأقصى للمقالات الجديدة. اضغط «جلب الأخبار» مرة أخرى، أو فعّل الوضع التلقائي."],
     });
   }
   return alerts;
@@ -438,7 +442,7 @@ async function runPipeline() {
   runInFlight = true;
   const btn = el("run-btn");
   btn.disabled = true;
-  btn.textContent = "Scouting...";
+  btn.textContent = "جارٍ الجلب...";
   let result = null;
   try {
     const res = await fetch("/api/run", { method: "POST" });
@@ -451,16 +455,16 @@ async function runPipeline() {
       el("stat-pending").textContent = result.pending ?? "—";
       renderAlerts(alertsFromRun(result));
     } else {
-      renderAlerts([{ level: "error", title: "Pipeline run failed", lines: [result.detail || "unknown error"] }]);
+      renderAlerts([{ level: "error", title: "فشل جلب الأخبار", lines: [result.detail || "خطأ غير معروف"] }]);
       result = null;
     }
   } catch (e) {
-    renderAlerts([{ level: "error", title: "Pipeline run failed", lines: [e.message] }]);
+    renderAlerts([{ level: "error", title: "فشل جلب الأخبار", lines: [e.message] }]);
     result = null;
   } finally {
     runInFlight = false;
     btn.disabled = false;
-    btn.textContent = "Run Scouts";
+    btn.textContent = "جلب الأخبار";
     loadFeed();
   }
   return result;
@@ -502,12 +506,12 @@ function renderAutoStatus() {
   const box = el("auto-status");
   const on = el("auto-toggle").checked;
   if (!on) { box.textContent = ""; return; }
-  if (runInFlight) { box.textContent = "running now…"; return; }
-  if (!autoNextAt) { box.textContent = "scheduled"; return; }
+  if (runInFlight) { box.textContent = "قيد التشغيل…"; return; }
+  if (!autoNextAt) { box.textContent = "مُجدول"; return; }
   const secs = Math.max(0, Math.round((autoNextAt - Date.now()) / 1000));
   box.textContent = secs >= 60
-    ? `next run in ${Math.round(secs / 60)}m`
-    : `next run in ${secs}s`;
+    ? `التشغيل القادم بعد ${Math.round(secs / 60)} دقيقة`
+    : `التشغيل القادم بعد ${secs} ثانية`;
 }
 
 function scheduleAutoRun(delayMs) {
@@ -553,10 +557,10 @@ function initAutoRun() {
 }
 
 async function clearArticles() {
-  if (!confirm("Delete all articles? This can't be undone.")) return;
+  if (!confirm("حذف جميع المقالات؟ لا يمكن التراجع عن هذه الخطوة.")) return;
   const btn = el("clear-btn");
   btn.disabled = true;
-  btn.textContent = "Clearing...";
+  btn.textContent = "جارٍ الحذف...";
   try {
     await fetch("/api/articles", { method: "DELETE" });
     el("stat-seen").textContent = "—";
@@ -565,7 +569,7 @@ async function clearArticles() {
     el("stat-rejected").textContent = "—";
   } finally {
     btn.disabled = false;
-    btn.textContent = "Clear Articles";
+    btn.textContent = "حذف المقالات";
     loadFeed();
   }
 }
@@ -573,7 +577,7 @@ async function clearArticles() {
 async function runHealthCheck() {
   const btn = el("health-btn");
   btn.disabled = true;
-  btn.textContent = "Checking...";
+  btn.textContent = "جارٍ الفحص...";
   try {
     const res = await fetch("/api/health");
     const h = await res.json();
@@ -582,42 +586,42 @@ async function runHealthCheck() {
     const badEnv = Object.entries(h.env || {})
       .filter(([, v]) => !v.set || v.had_surrounding_whitespace || v.has_internal_whitespace)
       .map(([k, v]) => {
-        if (!v.set) return `${k} — not set`;
+        if (!v.set) return `${k} — غير مضبوط`;
         if (v.problem) return v.problem;
-        return `${k} — has leading/trailing whitespace; re-paste it without a trailing newline`;
+        return `${k} — يحتوي على فراغات في أوله أو آخره؛ أعد لصقه دون سطر فارغ في النهاية`;
       });
     if (badEnv.length) {
       alerts.push({
         level: Object.values(h.env || {}).some(v => v.has_internal_whitespace) ? "error" : "warn",
-        title: "Environment variables",
+        title: "متغيرات البيئة",
         lines: badEnv,
       });
     }
 
-    for (const [name, key] of [["Gemini", "gemini"], ["Groq (optional fallback)", "groq"], ["Database", "database"]]) {
+    for (const [name, key] of [["Gemini", "gemini"], ["Groq (احتياطي اختياري)", "groq"], ["قاعدة البيانات", "database"]]) {
       const r = h[key];
       if (r && !r.ok) {
-        const lines = [r.error || "unknown error"];
-        if (r.available_models) lines.push("Models this key can reach: " + r.available_models.join(", "));
+        const lines = [r.error || "خطأ غير معروف"];
+        if (r.available_models) lines.push("النماذج المتاحة لهذا المفتاح: " + r.available_models.join(", "));
         if (r.available_models_error) lines.push(r.available_models_error);
-        alerts.push({ level: key === "groq" ? "warn" : "error", title: `${name} is not working`, lines });
+        alerts.push({ level: key === "groq" ? "warn" : "error", title: `${name} لا يعمل`, lines });
       }
     }
 
     if (!alerts.length) {
-      alerts.push({ level: "ok", title: "All systems OK", lines: [
+      alerts.push({ level: "ok", title: "كل الأنظمة تعمل", lines: [
         `Gemini: ${h.gemini?.model}`,
         `Groq: ${h.groq?.model}`,
-        `Database: ${h.database?.articles} article(s) — ` +
-          Object.entries(h.database?.by_status || {}).map(([k, v]) => `${v} ${k}`).join(", "),
+        `قاعدة البيانات: ${h.database?.articles} مقال — ` +
+          Object.entries(h.database?.by_status || {}).map(([k, v]) => `${v} ${STATUS_AR_PLAIN[k] || k}`).join("، "),
       ]});
     }
     renderAlerts(alerts);
   } catch (e) {
-    renderAlerts([{ level: "error", title: "System check failed", lines: [e.message] }]);
+    renderAlerts([{ level: "error", title: "فشل فحص النظام", lines: [e.message] }]);
   } finally {
     btn.disabled = false;
-    btn.textContent = "Run system check";
+    btn.textContent = "فحص النظام";
   }
 }
 

@@ -128,7 +128,7 @@ DEFAULT_CONFIG = {
     "active_source": "moroccan",
     "sources": {
         "moroccan": {
-            "label": "Moroccan press",
+            "label": "الصحافة المغربية",
             # Every feed here was probed twice: once locally, then again
             # from the deployed function (via /api/run?max_new_candidates=0,
             # which fetches feeds but inserts nothing and calls no LLM).
@@ -178,7 +178,7 @@ DEFAULT_CONFIG = {
             "rubric": MOROCCAN_RUBRIC,
         },
         "arabic": {
-            "label": "Arabic sources",
+            "label": "مصادر عربية",
             # Every one of these was measured through the real fetch path
             # before being listed. Not included, with reasons:
             #   skynewsarabia.com -- article pages take 15-42s to answer,
