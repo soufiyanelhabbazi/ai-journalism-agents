@@ -26,7 +26,12 @@
      UI loses its typographic identity. Inter stays in the stack for the
      Latin text that remains (brand name, provider names, URLs). */
   --font-sans: "IBM Plex Sans Arabic", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /* JetBrains Mono carries no Arabic, so every mono-styled element with
+     Arabic in it fell back to a system font AND got forced into fixed-width
+     cells -- which is why headings rendered unjoined. Font fallback is
+     per-glyph, so naming an Arabic face inside the mono stack keeps Latin
+     and digits monospaced while Arabic gets a face that actually joins. */
+  --font-mono: "JetBrains Mono", "IBM Plex Sans Arabic", ui-monospace, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -149,10 +154,10 @@ body {
   box-shadow: var(--shadow);
 }
 .panel h2 {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--accent);
-  margin: 0 0 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 14px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border-soft);
 }
@@ -559,9 +564,8 @@ textarea:focus, input:focus {
   position: absolute;
   top: 18px;
   inset-inline-end: 22px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 700;
+  font-size: 11.5px;
+  font-weight: 600;
   padding: 5px 12px;
   border-radius: 999px;
 }
