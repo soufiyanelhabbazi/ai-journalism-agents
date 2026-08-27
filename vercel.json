@@ -10,5 +10,8 @@
       "path": "/api/cron/run",
       "schedule": "0 6 * * *"
     }
+  ],
+  "regions": [
+    "cdg1"
   ]
 }
