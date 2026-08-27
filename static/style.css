@@ -128,21 +128,14 @@ body {
 .btn-block { width: 100%; margin-top: 18px; }
 
 /* ---------- Layout ---------- */
-.layout {
+/* One column now: settings moved out of a permanent sidebar into their own
+   view, so nothing competes with the content of the screen you are on. */
+.shell {
   max-width: 1360px;
   margin: 0 auto;
-  padding: 32px 32px 72px;
-  display: grid;
-  grid-template-columns: 340px 1fr;
-  gap: 28px;
-  align-items: start;
+  padding: 28px 32px 72px;
 }
-@media (max-width: 900px) {
-  .layout { grid-template-columns: 1fr; }
-}
-
-.sidebar { position: sticky; top: 92px; display: flex; flex-direction: column; gap: 20px; }
-@media (max-width: 900px) { .sidebar { position: static; } }
+@media (max-width: 720px) { .shell { padding: 20px 16px 56px; } }
 
 .panel {
   background: var(--surface);
@@ -720,3 +713,241 @@ textarea:focus, input:focus {
 }
 
 .edition-name { color: var(--accent); font-weight: 600; }
+
+/* ===================== View navigation ===================== */
+.viewnav {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.viewtab {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  padding: 8px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.viewtab:hover { color: var(--text); }
+.viewtab.active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+/* ===================== Dashboard ===================== */
+.dash-head {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) 1fr;
+  gap: 20px;
+  align-items: stretch;
+  margin-bottom: 22px;
+}
+@media (max-width: 900px) { .dash-head { grid-template-columns: 1fr; } }
+
+.hero-block {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  box-shadow: var(--shadow);
+}
+
+.hero-label { font-size: 0.82rem; color: var(--text-muted); }
+
+/* The one number the dashboard leads with. Proportional figures on purpose --
+   tabular-nums gives every digit the width of a zero, which reads loose at
+   this size; it is reserved below for columns that must align. */
+.hero-figure {
+  font-size: 3.2rem;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--accent);
+}
+
+.hero-sub { font-size: 0.72rem; color: var(--text-faint); font-family: var(--font-mono); }
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-inline-start: 3px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kpi-label { font-size: 0.78rem; color: var(--text-muted); }
+.kpi-value { font-size: 1.6rem; font-weight: 600; color: var(--text); }
+.kpi-acc { border-inline-start-color: var(--accept); }
+.kpi-acc .kpi-value { color: var(--accept); }
+.kpi-rej { border-inline-start-color: var(--reject); }
+.kpi-rej .kpi-value { color: var(--reject); }
+.kpi-pend { border-inline-start-color: var(--pending); }
+.kpi-pend .kpi-value { color: var(--pending); }
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.dash-panel-wide { grid-column: 1 / -1; }
+
+/* ===================== Charts ===================== */
+.chart { display: flex; flex-direction: column; gap: 9px; margin-top: 6px; }
+.chart-sub { margin-top: 18px; }
+.chart-sub-title { font-size: 0.76rem; color: var(--text-muted); margin-bottom: 8px; }
+.chart-empty { font-size: 0.82rem; color: var(--text-faint); padding: 10px 0; }
+
+/* Two status series share these charts, so identity is never colour-alone:
+   the legend is always present and every bar carries a tooltip with counts. */
+.chart-legend {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 4px;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.lg { display: inline-flex; align-items: center; gap: 5px; }
+.lg-swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.lg-acc { background: var(--accept); }
+.lg-rej { background: var(--reject); }
+
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(84px, 132px) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+
+.bar-label {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bar-track { height: 12px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+
+/* 2px surface gap between touching segments -- the separator is the gap, never
+   a stroke drawn around the marks. */
+.bar-bars { display: flex; height: 100%; gap: 2px; min-width: 3px; }
+
+.bar-fill { height: 100%; min-width: 0; }
+/* Rounded at the data end, square at the baseline. Logical corners, so this
+   stays correct when the whole layout mirrors. */
+.bar-fill:last-child { border-start-end-radius: 4px; border-end-end-radius: 4px; }
+.bar-acc { background: var(--accept); }
+.bar-rej { background: var(--reject); }
+.bar-one { background: var(--accent); }
+
+.bar-value {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;  /* a column of numbers, so align them */
+  min-width: 30px;
+  text-align: start;
+}
+
+/* ===================== System health ===================== */
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+  margin: 6px 0 16px;
+}
+
+.health-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 9px;
+  align-items: start;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-soft);
+  border-inline-start: 3px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+/* Status never rides on colour alone -- each card carries a mark and a label. */
+.health-mark { grid-row: span 2; font-size: 0.9rem; font-weight: 700; line-height: 1.4; }
+.health-title { font-size: 0.82rem; color: var(--text); font-weight: 600; }
+.health-detail {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.health-ok { border-inline-start-color: var(--accept); }
+.health-ok .health-mark { color: var(--accept); }
+.health-bad { border-inline-start-color: var(--reject); }
+.health-bad .health-mark { color: var(--reject); }
+.health-warn { border-inline-start-color: var(--pending); }
+.health-warn .health-mark { color: var(--pending); }
+.health-loading { font-size: 0.8rem; color: var(--text-faint); }
+
+/* ===================== Settings view ===================== */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.settings-panel-wide { grid-column: 1 / -1; }
+
+.field-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: end;
+}
+@media (max-width: 560px) { .field-pair { grid-template-columns: 1fr; } }
+
+/* Desks side by side instead of one tall column -- nine of them stacked was
+   most of the old sidebar's scroll. */
+.domains-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.settings-save {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.wire-controls-end { display: flex; align-items: center; gap: 10px; }

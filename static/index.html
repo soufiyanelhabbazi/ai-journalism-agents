@@ -24,9 +24,17 @@
         <span class="byline">ملكية: بتيسام مشكور</span>
       </div>
     </div>
+
+    <!-- Settings used to sit in a permanently visible sidebar, which meant
+         scrolling past every panel to reach the articles. They are a view of
+         their own now, so each screen shows one job at a time. -->
+    <nav class="viewnav" id="viewnav">
+      <button class="viewtab active" data-view="dashboard">لوحة القيادة</button>
+      <button class="viewtab" data-view="wire">الأخبار</button>
+      <button class="viewtab" data-view="settings">الإعدادات</button>
+    </nav>
+
     <div class="topbar-actions">
-      <div class="edition-date" id="edition-date"></div>
-      <button id="clear-btn" class="btn btn-ghost">حذف المقالات</button>
       <div class="auto-run">
         <label class="auto-switch" title="مواصلة جلب الأخبار تلقائيا ما دامت هذه الصفحة مفتوحة">
           <input type="checkbox" id="auto-toggle">
@@ -45,60 +53,58 @@
   </div>
 </header>
 
-<div class="layout">
+<main class="shell">
 
-  <aside class="sidebar">
-    <section class="panel">
-      <h2>المكاتب المتخصصة</h2>
-      <p class="panel-hint">كل مكتب وكيل مستقل: يوجَّه إليه المقال الذي يدخل في اختصاصه ويقيَّم وفق معاييره. ما يُقترح قبوله يحتاج مصادقة رئيس التحرير أدناه.</p>
-      <div id="domains-list"></div>
-      <button id="add-domain-btn" class="btn btn-ghost btn-block" type="button">+ إضافة مكتب</button>
-    </section>
+  <!-- ==================== لوحة القيادة ==================== -->
+  <section class="view" id="view-dashboard">
+    <div class="dash-head">
+      <div class="hero-block">
+        <span class="hero-label">مقالات عولجت إجمالا</span>
+        <span class="hero-figure" id="hero-total">—</span>
+        <span class="hero-sub" id="hero-sub">—</span>
+      </div>
+      <div class="kpi-row" id="kpi-row"></div>
+    </div>
 
-    <section class="panel">
-      <h2>النسخة</h2>
-      <p class="panel-hint">الصحافة التي تُجلب منها الأخبار. لكل نسخة مصادرها ومعاييرها التحريرية الخاصة، لذا تغييرها يغيّر الاثنين معا.</p>
-      <div class="edition-picker" id="edition-picker"></div>
-    </section>
+    <div class="dash-grid">
+      <section class="panel dash-panel">
+        <h2>التوزيع حسب المكتب</h2>
+        <p class="panel-hint">عدد المقالات التي وُجّهت إلى كل مكتب، والمقبول منها.</p>
+        <div id="chart-desks" class="chart"></div>
+      </section>
 
-    <section class="panel">
-      <h2>رئيس التحرير</h2>
-      <label class="field-label">معايير النشر لنسخة <span id="rubric-edition-name" class="edition-name">هذه النسخة</span> <span class="hint">تُطبَّق على كل مقال يقترحه أحد المكاتب — القرار النهائي قبل النشر</span></label>
-      <textarea id="rubric" rows="6" placeholder="صف ما الذي يجعل المقال صالحا للنشر، أيا كان المكتب..."></textarea>
+      <section class="panel dash-panel">
+        <h2>أبرز المصادر</h2>
+        <p class="panel-hint">المصادر الأكثر إنتاجا، مرتبة حسب عدد المقالات المجلوبة.</p>
+        <div id="chart-sources" class="chart"></div>
+      </section>
 
-      <label class="field-label">الحد الأدنى لعدد الكلمات</label>
-      <input id="min-words" type="number" min="0" />
+      <section class="panel dash-panel">
+        <h2>النشاط اليومي</h2>
+        <p class="panel-hint">المقالات المجلوبة في كل يوم، والمقبول منها.</p>
+        <div id="chart-days" class="chart"></div>
+      </section>
 
-      <label class="field-label checkbox-label">
-        <input id="require-attribution" type="checkbox" />
-        اشتراط الإسناد (اقتباس / «قال» / «حسب»)
-      </label>
+      <section class="panel dash-panel">
+        <h2>مراحل القرار</h2>
+        <p class="panel-hint">المرحلة التي حُسم فيها كل مقال، ومن أصدر الحكم.</p>
+        <div id="chart-stages" class="chart"></div>
+        <div id="chart-providers" class="chart chart-sub"></div>
+      </section>
 
-      <label class="field-label">كلمات مستبعَدة <span class="hint">كلمة في كل سطر، أي تطابق يؤدي إلى الرفض</span></label>
-      <textarea id="exclude-keywords" rows="2" placeholder="مثال: حظك اليوم&#10;إعلان ممول"></textarea>
+      <section class="panel dash-panel dash-panel-wide">
+        <h2>حالة النظام</h2>
+        <p class="panel-hint">المصادر ومزوّدو الذكاء الاصطناعي وقاعدة البيانات والتشغيل المجدول.</p>
+        <div id="dash-health" class="health-grid">
+          <div class="health-loading">اضغط «تحديث» لفحص النظام…</div>
+        </div>
+        <button id="health-btn" class="btn btn-ghost" type="button">فحص النظام</button>
+      </section>
+    </div>
+  </section>
 
-      <label class="field-label">مواقع محظورة <span class="hint">موقع في كل سطر</span></label>
-      <textarea id="banned" rows="2" placeholder="example.com"></textarea>
-
-      <label class="field-label">مصادر <span id="feeds-edition-name" class="edition-name">هذه النسخة</span> <span class="hint">رابط RSS واحد في كل سطر</span></label>
-      <textarea id="feeds" rows="5" placeholder="https://example.com/feed"></textarea>
-
-      <button id="save-btn" class="btn btn-primary btn-block">حفظ المعايير</button>
-      <div id="save-status" class="save-status"></div>
-    </section>
-
-    <section class="panel stats-panel">
-      <h2>آخر تشغيل</h2>
-      <div class="stat-row"><span>مقالات مفحوصة</span><span id="stat-seen">—</span></div>
-      <div class="stat-row"><span>مقالات جديدة</span><span id="stat-new">—</span></div>
-      <div class="stat-row accepted"><span>مقبولة</span><span id="stat-accepted">—</span></div>
-      <div class="stat-row rejected"><span>مرفوضة</span><span id="stat-rejected">—</span></div>
-      <div class="stat-row"><span>في انتظار القرار</span><span id="stat-pending">—</span></div>
-      <button id="health-btn" class="btn btn-ghost btn-block" type="button">فحص النظام</button>
-    </section>
-  </aside>
-
-  <main class="wire">
+  <!-- ==================== الأخبار ==================== -->
+  <section class="view" id="view-wire" hidden>
     <div class="wire-controls">
       <div class="filter-tabs">
         <button class="tab active" data-status="">الكل</button>
@@ -106,15 +112,70 @@
         <button class="tab" data-status="rejected">مرفوضة</button>
         <button class="tab" data-status="pending">في انتظار القرار</button>
       </div>
-      <select id="domain-filter" class="domain-filter">
-        <option value="">كل المكاتب</option>
-      </select>
+      <div class="wire-controls-end">
+        <select id="domain-filter" class="domain-filter">
+          <option value="">كل المكاتب</option>
+        </select>
+        <button id="clear-btn" class="btn btn-ghost">حذف المقالات</button>
+      </div>
     </div>
     <div id="alerts" class="alerts" hidden></div>
     <div id="feed" class="feed"></div>
-  </main>
+  </section>
 
-</div>
+  <!-- ==================== الإعدادات ==================== -->
+  <section class="view" id="view-settings" hidden>
+    <div class="settings-grid">
+
+      <section class="panel">
+        <h2>النسخة</h2>
+        <p class="panel-hint">الصحافة التي تُجلب منها الأخبار. لكل نسخة مصادرها ومعاييرها التحريرية الخاصة، لذا تغييرها يغيّر الاثنين معا.</p>
+        <div class="edition-picker" id="edition-picker"></div>
+
+        <label class="field-label">مصادر <span id="feeds-edition-name" class="edition-name">هذه النسخة</span> <span class="hint">رابط RSS واحد في كل سطر</span></label>
+        <textarea id="feeds" rows="8" placeholder="https://example.com/feed"></textarea>
+      </section>
+
+      <section class="panel">
+        <h2>رئيس التحرير</h2>
+        <label class="field-label">معايير النشر لنسخة <span id="rubric-edition-name" class="edition-name">هذه النسخة</span> <span class="hint">تُطبَّق على كل مقال يقترحه أحد المكاتب — القرار النهائي قبل النشر</span></label>
+        <textarea id="rubric" rows="8" placeholder="صف ما الذي يجعل المقال صالحا للنشر، أيا كان المكتب..."></textarea>
+
+        <div class="field-pair">
+          <div>
+            <label class="field-label">الحد الأدنى لعدد الكلمات</label>
+            <input id="min-words" type="number" min="0" />
+          </div>
+          <label class="field-label checkbox-label">
+            <input id="require-attribution" type="checkbox" />
+            اشتراط الإسناد (اقتباس / «قال» / «حسب»)
+          </label>
+        </div>
+
+        <label class="field-label">كلمات مستبعَدة <span class="hint">كلمة في كل سطر، أي تطابق يؤدي إلى الرفض</span></label>
+        <textarea id="exclude-keywords" rows="2" placeholder="مثال: حظك اليوم&#10;إعلان ممول"></textarea>
+
+        <label class="field-label">مواقع محظورة <span class="hint">موقع في كل سطر</span></label>
+        <textarea id="banned" rows="2" placeholder="example.com"></textarea>
+      </section>
+
+      <section class="panel settings-panel-wide">
+        <h2>المكاتب المتخصصة</h2>
+        <p class="panel-hint">كل مكتب وكيل مستقل: يوجَّه إليه المقال الذي يدخل في اختصاصه ويقيَّم وفق معاييره. ما يُقترح قبوله يحتاج مصادقة رئيس التحرير.</p>
+        <div id="domains-list" class="domains-grid"></div>
+        <button id="add-domain-btn" class="btn btn-ghost" type="button">+ إضافة مكتب</button>
+      </section>
+    </div>
+
+    <!-- Save is fixed to the bottom of the settings view: the desks grid can
+         run long, and a button that scrolls away invites lost edits. -->
+    <div class="settings-save">
+      <div id="save-status" class="save-status"></div>
+      <button id="save-btn" class="btn btn-primary">حفظ المعايير</button>
+    </div>
+  </section>
+
+</main>
 
 <script src="/static/app.js"></script>
 </body>

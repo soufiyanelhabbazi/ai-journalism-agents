@@ -260,6 +260,12 @@ def health():
     return report
 
 
+@app.get("/api/stats")
+def stats():
+    """Aggregate figures behind the owner dashboard."""
+    return db.stats()
+
+
 # ---------- Config ----------
 
 class Domain(BaseModel):

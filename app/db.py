@@ -461,6 +461,74 @@ def status_counts() -> dict:
         return {r["status"]: r["n"] for r in rows}
 
 
+def stats() -> dict:
+    """
+    Aggregates for the owner dashboard.
+
+    Every figure is computed with GROUP BY on the database side rather than by
+    pulling rows and counting them here: the articles table carries full
+    article bodies plus drafts, so fetching it whole to count statuses would
+    move megabytes over the network to produce a handful of integers.
+
+    SUM(status='accepted') works because SQLite gives comparisons 1/0, so each
+    group yields its total and its accepted count in one pass.
+    """
+    with get_conn() as conn:
+        by_status = {r["status"]: r["n"] for r in conn.execute(
+            "SELECT status, COUNT(*) AS n FROM articles GROUP BY status").fetchall()}
+
+        drafts = conn.execute(
+            "SELECT COUNT(*) AS n FROM articles "
+            "WHERE draft_article IS NOT NULL AND draft_article != ''").fetchone()["n"]
+
+        by_desk = conn.execute(
+            "SELECT domain AS name, COUNT(*) AS total, SUM(status='accepted') AS accepted "
+            "FROM articles WHERE domain IS NOT NULL AND domain != '' "
+            "GROUP BY domain ORDER BY total DESC").fetchall()
+
+        by_source = conn.execute(
+            "SELECT source AS name, COUNT(*) AS total, SUM(status='accepted') AS accepted "
+            "FROM articles WHERE source IS NOT NULL AND source != '' "
+            "GROUP BY source ORDER BY total DESC LIMIT 12").fetchall()
+
+        by_stage = {r["stage"] or "?": r["n"] for r in conn.execute(
+            "SELECT stage, COUNT(*) AS n FROM articles GROUP BY stage").fetchall()}
+
+        by_provider = {r["provider"]: r["n"] for r in conn.execute(
+            "SELECT provider, COUNT(*) AS n FROM articles "
+            "WHERE provider IS NOT NULL GROUP BY provider").fetchall()}
+
+        # created_at is written by the DB at insert time, so its date part is
+        # the day the scouts pulled the article in.
+        by_day = conn.execute(
+            "SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS total, "
+            "SUM(status='accepted') AS accepted FROM articles "
+            "WHERE created_at IS NOT NULL GROUP BY day ORDER BY day DESC LIMIT 14").fetchall()
+
+        latest = conn.execute("SELECT MAX(created_at) AS t FROM articles").fetchone()["t"]
+
+    total = sum(by_status.values())
+    accepted = by_status.get("accepted", 0)
+    return {
+        "totals": {
+            "articles": total,
+            "accepted": accepted,
+            "rejected": by_status.get("rejected", 0),
+            "pending": by_status.get("pending", 0),
+            "drafts": drafts,
+            # Share of decided articles that were accepted -- pending ones have
+            # no verdict yet, so counting them would understate the rate.
+            "accept_rate": round(accepted / max(accepted + by_status.get("rejected", 0), 1) * 100),
+        },
+        "by_desk": by_desk,
+        "by_source": by_source,
+        "by_stage": by_stage,
+        "by_provider": by_provider,
+        "by_day": list(reversed(by_day)),
+        "latest_fetch": latest,
+    }
+
+
 def get_article(article_id: int) -> dict | None:
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM articles WHERE id=?", (article_id,)).fetchone()

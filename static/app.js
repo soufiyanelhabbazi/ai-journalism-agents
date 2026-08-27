@@ -3,12 +3,6 @@ const el = (id) => document.getElementById(id);
 let currentFilter = "";
 let currentDomainFilter = "";
 
-function setEditionDate() {
-  const now = new Date();
-  el("edition-date").textContent = now.toLocaleDateString("ar-MA", {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
-  });
-}
 
 function domainRowTemplate(name = "", rubric = "") {
   return `
@@ -448,12 +442,9 @@ async function runPipeline() {
     const res = await fetch("/api/run", { method: "POST" });
     result = await res.json();
     if (res.ok) {
-      el("stat-seen").textContent = result.candidates_seen;
-      el("stat-new").textContent = result.new_articles;
-      el("stat-accepted").textContent = result.accepted;
-      el("stat-rejected").textContent = result.rejected;
-      el("stat-pending").textContent = result.pending ?? "—";
+      lastRun = result;
       renderAlerts(alertsFromRun(result));
+      loadStats();  // the dashboard's figures just changed
     } else {
       renderAlerts([{ level: "error", title: "فشل جلب الأخبار", lines: [result.detail || "خطأ غير معروف"] }]);
       result = null;
@@ -563,10 +554,8 @@ async function clearArticles() {
   btn.textContent = "جارٍ الحذف...";
   try {
     await fetch("/api/articles", { method: "DELETE" });
-    el("stat-seen").textContent = "—";
-    el("stat-new").textContent = "—";
-    el("stat-accepted").textContent = "—";
-    el("stat-rejected").textContent = "—";
+    lastRun = null;
+    loadStats();
   } finally {
     btn.disabled = false;
     btn.textContent = "حذف المقالات";
@@ -574,51 +563,180 @@ async function clearArticles() {
   }
 }
 
+
+// ---------- Views ----------
+//
+// Three screens rather than one page with a tall settings sidebar. The old
+// layout put every configuration panel permanently on screen, so reaching the
+// articles meant scrolling past all of them.
+
+let currentView = "dashboard";
+
+function showView(name) {
+  currentView = name;
+  ["dashboard", "wire", "settings"].forEach(v => {
+    el("view-" + v).hidden = v !== name;
+  });
+  document.querySelectorAll(".viewtab").forEach(t => {
+    t.classList.toggle("active", t.dataset.view === name);
+  });
+  if (name === "dashboard") loadStats();
+  if (name === "wire") loadFeed();
+}
+
+
+// ---------- Dashboard ----------
+//
+// Magnitude comparisons, so bars carry length and a single accent hue -- the
+// colour is not encoding anything, the length is. The one place colour does
+// carry meaning is accepted vs rejected, which uses the app's reserved status
+// tokens; those two sit near the colourblind-separation floor, so they are
+// never colour-alone -- every chart using them carries a legend, and every bar
+// carries a tooltip naming the counts.
+
+let lastRun = null;
+
+function compact(n) {
+  if (n == null) return "—";
+  return n >= 10000 ? (n / 1000).toFixed(1) + "K" : String(n);
+}
+
+function statTile(label, value, tone) {
+  return `<div class="kpi${tone ? " kpi-" + tone : ""}">
+    <span class="kpi-label">${escapeHtml(label)}</span>
+    <span class="kpi-value">${escapeHtml(String(value))}</span>
+  </div>`;
+}
+
+function chartLegend() {
+  return `<div class="chart-legend">
+    <span class="lg"><i class="lg-swatch lg-acc"></i>مقبولة</span>
+    <span class="lg"><i class="lg-swatch lg-rej"></i>مرفوضة</span>
+  </div>`;
+}
+
+// items: [{name, total, accepted}] -- accepted omitted renders a plain bar.
+function barRows(items, { split = false } = {}) {
+  if (!items.length) return `<div class="chart-empty">لا توجد بيانات بعد.</div>`;
+  const max = Math.max(...items.map(i => i.total), 1);
+  return items.map(i => {
+    const width = Math.max(Math.round((i.total / max) * 100), 2);
+    const acc = Number(i.accepted || 0);
+    const rej = Math.max(i.total - acc, 0);
+    const rate = i.total ? Math.round((acc / i.total) * 100) : 0;
+    const title = split
+      ? `${i.name} — ${i.total} مقال · ${acc} مقبولة (${rate}%) · ${rej} مرفوضة`
+      : `${i.name} — ${i.total}`;
+    const fills = split
+      ? `<span class="bar-fill bar-acc" style="flex:${acc || 0}"></span>` +
+        `<span class="bar-fill bar-rej" style="flex:${rej || 0}"></span>`
+      : `<span class="bar-fill bar-one" style="flex:1"></span>`;
+    return `<div class="bar-row" title="${escapeHtml(title)}">
+      <span class="bar-label" dir="auto">${escapeHtml(i.name)}</span>
+      <span class="bar-track"><span class="bar-bars" style="width:${width}%">${fills}</span></span>
+      <span class="bar-value">${i.total}</span>
+    </div>`;
+  }).join("");
+}
+
+function mapToItems(obj, labels) {
+  return Object.entries(obj || {})
+    .map(([k, v]) => ({ name: (labels && labels[k]) || k, total: v }))
+    .sort((a, b) => b.total - a.total);
+}
+
+function renderStats(st) {
+  const t = st.totals;
+  el("hero-total").textContent = compact(t.articles);
+
+  const parts = [];
+  if (st.latest_fetch) parts.push("آخر جلب " + fetchedStamp(st.latest_fetch).replace("جُلب في ", ""));
+  if (lastRun) parts.push(`آخر تشغيل: ${lastRun.candidates_seen} مفحوصة · ${lastRun.new_articles} جديدة`);
+  el("hero-sub").textContent = parts.join("  ·  ") || "لم يبدأ الجلب بعد";
+
+  el("kpi-row").innerHTML =
+    statTile("مقبولة", t.accepted, "acc") +
+    statTile("مرفوضة", t.rejected, "rej") +
+    statTile("في انتظار القرار", t.pending, t.pending ? "pend" : null) +
+    statTile("مقالات محرَّرة", t.drafts) +
+    statTile("نسبة القبول", t.accept_rate + "%");
+
+  el("chart-desks").innerHTML = chartLegend() + barRows(st.by_desk, { split: true });
+  el("chart-sources").innerHTML = chartLegend() + barRows(st.by_source, { split: true });
+  el("chart-days").innerHTML = chartLegend() + barRows(
+    (st.by_day || []).map(d => ({ name: d.day, total: d.total, accepted: d.accepted })).reverse(),
+    { split: true });
+
+  const STAGE_AR = {
+    rule: "فحص القواعد", specialist: "مراجعة المكتب",
+    editor: "المكتب + رئيس التحرير", manual: "تدخل يدوي", llm: "مراجعة تحريرية",
+  };
+  el("chart-stages").innerHTML = barRows(mapToItems(st.by_stage, STAGE_AR));
+  const prov = mapToItems(st.by_provider);
+  el("chart-providers").innerHTML = prov.length
+    ? `<div class="chart-sub-title">مزوّد الحكم</div>` + barRows(prov)
+    : "";
+}
+
+async function loadStats() {
+  try {
+    const res = await fetch("/api/stats");
+    if (!res.ok) return;
+    renderStats(await res.json());
+  } catch (e) {
+    // A failed stats fetch shouldn't blank the dashboard the user is reading.
+  }
+}
+
+function healthCard(title, ok, detail) {
+  const tone = ok === null ? "warn" : ok ? "ok" : "bad";
+  const mark = ok === null ? "!" : ok ? "✓" : "✕";
+  return `<div class="health-card health-${tone}">
+    <span class="health-mark">${mark}</span>
+    <span class="health-title">${escapeHtml(title)}</span>
+    <span class="health-detail">${escapeHtml(detail || "")}</span>
+  </div>`;
+}
+
 async function runHealthCheck() {
   const btn = el("health-btn");
+  const box = el("dash-health");
   btn.disabled = true;
   btn.textContent = "جارٍ الفحص...";
   try {
     const res = await fetch("/api/health");
     const h = await res.json();
-    const alerts = [];
+    const cards = [];
 
-    const badEnv = Object.entries(h.env || {})
-      .filter(([, v]) => !v.set || v.had_surrounding_whitespace || v.has_internal_whitespace)
-      .map(([k, v]) => {
-        if (!v.set) return `${k} — غير مضبوط`;
-        if (v.problem) return v.problem;
-        return `${k} — يحتوي على فراغات في أوله أو آخره؛ أعد لصقه دون سطر فارغ في النهاية`;
-      });
-    if (badEnv.length) {
-      alerts.push({
-        level: Object.values(h.env || {}).some(v => v.has_internal_whitespace) ? "error" : "warn",
-        title: "متغيرات البيئة",
-        lines: badEnv,
-      });
+    cards.push(healthCard("Gemini", !!h.gemini?.ok,
+      h.gemini?.ok ? h.gemini.model : (h.gemini?.error || "").slice(0, 120)));
+    cards.push(healthCard("Groq (احتياطي)", !!h.groq?.ok,
+      h.groq?.ok ? h.groq.model : (h.groq?.error || "").slice(0, 120)));
+    cards.push(healthCard("قاعدة البيانات", !!h.database?.ok,
+      h.database?.ok ? `${h.database.articles} مقال مخزَّن` : (h.database?.error || "").slice(0, 120)));
+    cards.push(healthCard("التشغيل المجدول", h.scheduling?.enabled ? true : null,
+      h.scheduling?.enabled ? "مفعَّل" : "غير مفعَّل — اضبط CRON_SECRET للتشغيل دون فتح الصفحة"));
+
+    // Malformed secrets are the failure mode that reads like an outage, so
+    // they get their own card rather than being buried in a list.
+    Object.entries(h.env || {}).forEach(([k, v]) => {
+      if (!v.set) cards.push(healthCard(k, null, "غير مضبوط"));
+      else if (v.has_internal_whitespace) cards.push(healthCard(k, false, v.problem || "قيمة غير صالحة"));
+      else if (v.had_surrounding_whitespace) cards.push(healthCard(k, null, "يحتوي على فراغات زائدة"));
+    });
+
+    // Sources that failed on the most recent run, if there was one.
+    const failed = lastRun?.scout_errors || [];
+    if (failed.length) {
+      failed.forEach(e => cards.push(healthCard(
+        e.feed.replace(/^https?:\/\//, "").split("/")[0], false, (e.error || "").slice(0, 90))));
+    } else if (lastRun) {
+      cards.push(healthCard("المصادر", true, "كل المصادر استجابت في آخر تشغيل"));
     }
 
-    for (const [name, key] of [["Gemini", "gemini"], ["Groq (احتياطي اختياري)", "groq"], ["قاعدة البيانات", "database"]]) {
-      const r = h[key];
-      if (r && !r.ok) {
-        const lines = [r.error || "خطأ غير معروف"];
-        if (r.available_models) lines.push("النماذج المتاحة لهذا المفتاح: " + r.available_models.join(", "));
-        if (r.available_models_error) lines.push(r.available_models_error);
-        alerts.push({ level: key === "groq" ? "warn" : "error", title: `${name} لا يعمل`, lines });
-      }
-    }
-
-    if (!alerts.length) {
-      alerts.push({ level: "ok", title: "كل الأنظمة تعمل", lines: [
-        `Gemini: ${h.gemini?.model}`,
-        `Groq: ${h.groq?.model}`,
-        `قاعدة البيانات: ${h.database?.articles} مقال — ` +
-          Object.entries(h.database?.by_status || {}).map(([k, v]) => `${v} ${STATUS_AR_PLAIN[k] || k}`).join("، "),
-      ]});
-    }
-    renderAlerts(alerts);
+    box.innerHTML = cards.join("");
   } catch (e) {
-    renderAlerts([{ level: "error", title: "فشل فحص النظام", lines: [e.message] }]);
+    box.innerHTML = `<div class="health-loading">فشل فحص النظام: ${escapeHtml(e.message)}</div>`;
   } finally {
     btn.disabled = false;
     btn.textContent = "فحص النظام";
@@ -648,7 +766,11 @@ el("domain-filter").addEventListener("change", () => {
   loadFeed();
 });
 
-setEditionDate();
+document.querySelectorAll(".viewtab").forEach(tab => {
+  tab.addEventListener("click", () => showView(tab.dataset.view));
+});
+
 initAutoRun();
 loadConfig();
 loadFeed();
+showView("dashboard");
