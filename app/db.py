@@ -129,19 +129,43 @@ DEFAULT_CONFIG = {
     "sources": {
         "moroccan": {
             "label": "Moroccan press",
-            # hespress.com, mapnews.ma, rue20.com and chouftv.ma are
-            # deliberately absent: all four 403 from Vercel's datacenter IPs
-            # while serving the identical request fine from a home IP, so
-            # listing them guarantees a failed-source warning on every run.
-            # Confirmed against production, not assumed. Add them back if
-            # this ever moves off Vercel or gains a proxy.
+            # Every feed here was probed twice: once locally, then again
+            # from the deployed function (via /api/run?max_new_candidates=0,
+            # which fetches feeds but inserts nothing and calls no LLM).
+            # That second pass is not optional -- rue20, chouftv and
+            # independentarabia all passed locally and then 403'd in
+            # production.
+            #
+            # Deliberately absent, all 403 from Vercel's datacenter IPs while
+            # serving a home IP fine: hespress.com, mapnews.ma, rue20.com,
+            # chouftv.ma. Also unavailable at any URL tried: le360, 2M,
+            # SNRT, akhbarona, goud, febrayer, hibapress, elbotola,
+            # almassae, panorapost (empty feed).
+            #
+            # French-language Moroccan outlets (leseco.ma, challenge.ma,
+            # ecoactu.ma, fesnews, telquel, medias24) fetch fine and are left
+            # out on purpose: the writer works in the source's language, so
+            # they would put French drafts into an otherwise Arabic edition.
+            # Worth a separate edition if that is ever wanted.
             "feeds": [
-                "https://al3omk.com/feed",
-                "https://alyaoum24.com/feed",
-                "https://assabah.ma/feed",
-                "https://www.barlamane.com/feed/",
-                "https://ar.yabiladi.com/rss",
-                "https://kifache.com/feed",
+                # National / general
+                "https://al3omk.com/feed",            # العمق المغربي
+                "https://alyaoum24.com/feed",         # اليوم 24
+                "https://assabah.ma/feed",            # الصباح
+                "https://ahdath.info/feed",           # الأحداث المغربية
+                "https://alakhbar.press.ma/feed",     # الأخبار
+                "https://www.assahifa.com/feed",      # الصحيفة
+                "https://www.barlamane.com/feed/",    # برلمان.كوم
+                "https://ar.yabiladi.com/rss",        # يابلادي
+                "https://kifache.com/feed",           # كيفاش
+                "https://alaoual.com/feed",           # الأول
+                "https://badil.info/feed",            # بديل
+                "https://achkayen.com/feed",          # أشكاين
+                "https://www.marayana.com/feed",      # مرايانا
+                # Regional
+                "https://agadir24.info/feed",         # أكادير 24
+                "https://oujdacity.net/feed",         # وجدة سيتي
+                "https://www.tanjanews.com/feed",     # طنجة نيوز
             ],
             "rubric": MOROCCAN_RUBRIC,
         },
