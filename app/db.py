@@ -136,11 +136,16 @@ DEFAULT_CONFIG = {
             # independentarabia all passed locally and then 403'd in
             # production.
             #
-            # Deliberately absent, all 403 from Vercel's datacenter IPs while
-            # serving a home IP fine: hespress.com, mapnews.ma, rue20.com,
-            # chouftv.ma. Also unavailable at any URL tried: le360, 2M,
-            # SNRT, akhbarona, goud, febrayer, hibapress, elbotola,
-            # almassae, panorapost (empty feed).
+            # The 403s that used to exclude hespress, chouftv and snrtnews
+            # were regional, not universal: these functions ran in iad1 (US
+            # East), and moving them to cdg1 (Paris, see vercel.json) cleared
+            # all three. Worth remembering as the first thing to try when a
+            # Moroccan site refuses this fetcher -- some of them block US
+            # datacenter ranges specifically.
+            #
+            # Still 403 even from Paris: mapnews.ma, rue20.com, febrayer,
+            # 2M. Also unavailable at any URL tried: le360, akhbarona, goud,
+            # hibapress, elbotola, almassae, panorapost (empty feed).
             #
             # French-language Moroccan outlets (leseco.ma, challenge.ma,
             # ecoactu.ma, fesnews, telquel, medias24) fetch fine and are left
@@ -149,6 +154,7 @@ DEFAULT_CONFIG = {
             # Worth a separate edition if that is ever wanted.
             "feeds": [
                 # National / general
+                "https://www.hespress.com/feed",      # هسبريس
                 "https://al3omk.com/feed",            # العمق المغربي
                 "https://alyaoum24.com/feed",         # اليوم 24
                 "https://assabah.ma/feed",            # الصباح
@@ -162,6 +168,8 @@ DEFAULT_CONFIG = {
                 "https://badil.info/feed",            # بديل
                 "https://achkayen.com/feed",          # أشكاين
                 "https://www.marayana.com/feed",      # مرايانا
+                "https://chouftv.ma/press/feed",      # شوف تي في
+                "https://www.snrtnews.com/feed",      # SNRT news
                 # Regional
                 "https://agadir24.info/feed",         # أكادير 24
                 "https://oujdacity.net/feed",         # وجدة سيتي
@@ -176,8 +184,6 @@ DEFAULT_CONFIG = {
             #   skynewsarabia.com -- article pages take 15-42s to answer,
             #     which would eat the run deadline for one story.
             #   alarabiya.net, alaraby.co.uk -- 403 to this fetcher.
-            #   independentarabia.com -- fetches fine locally but 403s from
-            #     Vercel's IPs, confirmed against production.
             #   arabic.rt.com -- works, but left out on editorial grounds:
             #     state outlet, and the Arabic rubric refuses one-sided
             #     propaganda anyway. Add it back if you disagree.
@@ -194,6 +200,7 @@ DEFAULT_CONFIG = {
                 "https://rss.dw.com/rdf/rss-ar-all",
                 "https://arabic.euronews.com/rss",
                 "https://arabic.cnn.com/api/v1/rss/rss.xml",
+                "https://www.independentarabia.com/rss.xml",
                 "https://www.alquds.co.uk/feed/",
             ],
             "rubric": ARABIC_RUBRIC,
