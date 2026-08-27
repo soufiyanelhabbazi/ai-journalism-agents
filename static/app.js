@@ -11,7 +11,7 @@ function domainRowTemplate(name = "", rubric = "") {
         <input type="text" class="domain-name" placeholder="اسم المكتب (مثال: رياضة)" value="${escapeHtml(name)}">
         <button type="button" class="domain-remove" onclick="this.closest('.domain-row').remove()">✕</button>
       </div>
-      <textarea class="domain-rubric" rows="2" placeholder="ما الذي يغطيه هذا المكتب...">${escapeHtml(rubric)}</textarea>
+      <textarea class="domain-rubric" rows="2" dir="auto" placeholder="ما الذي يغطيه هذا المكتب...">${escapeHtml(rubric)}</textarea>
     </div>
   `;
 }

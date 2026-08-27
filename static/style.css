@@ -930,6 +930,9 @@ textarea:focus, input:focus {
 }
 @media (max-width: 980px) { .settings-grid { grid-template-columns: minmax(0, 1fr); } }
 .settings-grid > .panel { display: flex; flex-direction: column; }
+.settings-grid > .panel > .btn,
+.settings-panel-wide > .btn,
+.dash-panel > .btn { align-self: flex-start; }
 /* the long free-text fields absorb the height difference between the two panels */
 .settings-grid > .panel > textarea:last-of-type { flex: 1; }
 
@@ -955,18 +958,19 @@ textarea:focus, input:focus {
 
 .settings-save {
   position: sticky;
-  bottom: 12px;
+  bottom: 16px;
   z-index: 5;
+  width: fit-content;
+  margin: 18px 0 0 auto;   /* hugs the inline-end corner */
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 14px;
-  margin-top: 18px;
-  padding: 14px 18px;
-  background: var(--surface);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
 }
+.settings-save .btn { white-space: nowrap; }
 
 .wire-controls-end { display: flex; align-items: center; gap: 10px; }
